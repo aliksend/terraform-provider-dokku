@@ -2,6 +2,8 @@
 
 This repository is a [Terraform](https://www.terraform.io) provider for [Dokku](https://dokku.com/).
 
+Only subset of dokku features are supported now. Each dokku resource are represented as terraform resource.
+
 ## Requirements
 
 - [Terraform](https://www.terraform.io/downloads.html) >= 1.0

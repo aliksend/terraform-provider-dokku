@@ -5,13 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/melbahja/goph"
 )
 
@@ -31,13 +28,13 @@ type domainResource struct {
 }
 
 type domainResourceModel struct {
-	AppName types.String `tfsdk:"app"`
-	Domains types.Set    `tfsdk:"domains"`
+	AppName types.String `tfsdk:"app_name"`
+	Domain  types.String `tfsdk:"domain"`
 }
 
 // Metadata returns the resource type name.
 func (r *domainResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_domains"
+	resp.TypeName = req.ProviderTypeName + "_domain"
 }
 
 // Configure adds the provider configured client to the resource.
@@ -54,12 +51,11 @@ func (r *domainResource) Configure(_ context.Context, req resource.ConfigureRequ
 func (r *domainResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"app": schema.StringAttribute{
+			"app_name": schema.StringAttribute{
 				Required: true,
 			},
-			"domains": schema.SetAttribute{
-				ElementType: types.StringType,
-				Required:    true,
+			"domain": schema.StringAttribute{
+				Required: true,
 			},
 		},
 	}
@@ -79,30 +75,35 @@ func (r *domainResource) Read(ctx context.Context, req resource.ReadRequest, res
 	stdout, _, err := run(ctx, r.client, fmt.Sprintf("domains:report %s", state.AppName.ValueString()))
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Unable to create domain",
-			"Unable to create domain. "+err.Error(),
+			"Unable to read domains",
+			"Unable to read domains. "+err.Error(),
 		)
 		return
 	}
 
-	lines := strings.Split(stdout, "\n")
-	var domains []string
+	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
+	found := false
 	for _, line := range lines {
 		parts := strings.Split(line, ":")
 		key := strings.TrimSpace(parts[0])
 		if key == "Domains app vhosts" {
 			domainList := strings.TrimSpace(parts[1])
 			if domainList != "" {
-				domains = strings.Split(domainList, " ")
+				for _, domain := range strings.Split(domainList, " ") {
+					if domain == state.Domain.ValueString() {
+						found = true
+						break
+					}
+				}
 			}
+			break
 		}
 	}
 
-	var stateData []attr.Value
-	for _, v := range domains {
-		stateData = append(stateData, basetypes.NewStringValue(v))
+	if !found {
+		resp.Diagnostics.AddError("Domain not found", "Domain not found")
+		return
 	}
-	state.Domains = basetypes.NewSetValueMust(types.StringType, stateData)
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, &state)
@@ -122,9 +123,13 @@ func (r *domainResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	// Set domains
-	r.setDomains(ctx, plan, &resp.Diagnostics)
-	if resp.Diagnostics.HasError() {
+	// Add domain
+	_, _, err := run(ctx, r.client, fmt.Sprintf("domains:add %s %s", plan.AppName.ValueString(), plan.Domain.ValueString()))
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to create domain",
+			"Unable to create domain. "+err.Error(),
+		)
 		return
 	}
 
@@ -153,31 +158,12 @@ func (r *domainResource) Update(ctx context.Context, req resource.UpdateRequest,
 	}
 
 	if plan.AppName.ValueString() != state.AppName.ValueString() {
-		resp.Diagnostics.AddAttributeError(path.Root("app"), "Unable to change app name", "Unable to change app name")
+		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "Unable to change app name", "Unable to change app name")
 		return
 	}
 
-	// Unset domains
-	var domainsToRemove []string
-	for _, existing := range state.Domains.Elements() {
-		//nolint:forcetypeassert
-		existingDomain := existing.(types.String)
-		found := false
-		for _, planned := range plan.Domains.Elements() {
-			//nolint:forcetypeassert
-			plannedDomain := planned.(types.String)
-			if plannedDomain.ValueString() == existingDomain.ValueString() {
-				found = true
-				break
-			}
-		}
-		// If exsting domain not present in planned keys then remove
-		if !found {
-			domainsToRemove = append(domainsToRemove, existingDomain.ValueString())
-		}
-	}
-	if len(domainsToRemove) != 0 {
-		_, _, err := run(ctx, r.client, fmt.Sprintf("domains:remove %s %s", state.AppName.ValueString(), strings.Join(domainsToRemove, " ")))
+	if plan.Domain.ValueString() != state.Domain.ValueString() {
+		_, _, err := run(ctx, r.client, fmt.Sprintf("domains:remove %s %s", state.AppName.ValueString(), state.Domain.ValueString()))
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Unable to create domains",
@@ -185,12 +171,16 @@ func (r *domainResource) Update(ctx context.Context, req resource.UpdateRequest,
 			)
 			return
 		}
-	}
 
-	// Set domains
-	r.setDomains(ctx, plan, &resp.Diagnostics)
-	if resp.Diagnostics.HasError() {
-		return
+		// Add domain
+		_, _, err = run(ctx, r.client, fmt.Sprintf("domains:add %s %s", plan.AppName.ValueString(), plan.Domain.ValueString()))
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Unable to create domain",
+				"Unable to create domain. "+err.Error(),
+			)
+			return
+		}
 	}
 
 	diags = resp.State.Set(ctx, plan)
@@ -211,35 +201,11 @@ func (r *domainResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	}
 
 	// Clear domains
-	_, _, err := run(ctx, r.client, fmt.Sprintf("domains:clear %s", state.AppName.ValueString()))
+	_, _, err := run(ctx, r.client, fmt.Sprintf("domains:remove %s %s", state.AppName.ValueString(), state.Domain.ValueString()))
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to delete domain",
 			"Unable to delete domain. "+err.Error(),
-		)
-		return
-	}
-}
-
-func (r *domainResource) setDomains(ctx context.Context, state domainResourceModel, d *diag.Diagnostics) {
-	var valuesArr []string
-	for _, v := range state.Domains.Elements() {
-		//nolint:forcetypeassert
-		strValue := v.(types.String)
-		valuesArr = append(valuesArr, strValue.ValueString())
-	}
-
-	var err error
-	if len(valuesArr) == 0 {
-		d.AddError("Config must contain at least one value", "Config must contain at least one value")
-		return
-	}
-
-	_, _, err = run(ctx, r.client, fmt.Sprintf("domains:set %s %s", state.AppName.ValueString(), strings.Join(valuesArr, " ")))
-	if err != nil {
-		d.AddError(
-			"Unable to create domain",
-			"Unable to create domain. "+err.Error(),
 		)
 		return
 	}

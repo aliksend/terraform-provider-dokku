@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/blang/semver"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -21,13 +22,6 @@ import (
 	"github.com/melbahja/goph"
 	"golang.org/x/crypto/ssh"
 )
-
-// TODO letsencrypt, postgres integration
-// TODO docker-options
-// TODO networks
-// TODO ports
-// TODO zero-downtime deployment
-// TODO crons
 
 // Ensure dokkuProvider satisfies various provider interfaces.
 var _ provider.Provider = &dokkuProvider{}
@@ -192,8 +186,8 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("ssh_cert"),
-			"Could not find cert",
-			"Could not find cert. "+err.Error(),
+			"Unable to find cert",
+			"Unable to find cert. "+err.Error(),
 		)
 		return
 	}
@@ -211,8 +205,8 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	client, err := goph.NewConn(sshConfig)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Could not establish SSH connection",
-			"Could not establish SSH connection. "+err.Error(),
+			"Unable to establish SSH connection",
+			"Unable to establish SSH connection. "+err.Error(),
 		)
 		return
 	}
@@ -253,8 +247,8 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		}
 	} else {
 		resp.Diagnostics.AddError(
-			"Could not detect dokku version",
-			"Could not detect dokku version. "+err.Error(),
+			"Unable to detect dokku version",
+			"Unable to detect dokku version. "+err.Error(),
 		)
 		return
 	}
@@ -270,10 +264,17 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 func (p *dokkuProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewAppResource,
+		NewChecksResource,
 		NewConfigResource,
+		NewDockerOptionResource,
 		NewDomainResource,
-		NewStorageResource,
+		NewLetsencryptResource,
+		NewNetworkResource,
 		NewPluginResource,
+		NewPostgresLinkResource,
+		NewPostgresResource,
+		NewProxyPortsResource,
+		NewStorageResource,
 	}
 }
 
@@ -317,15 +318,21 @@ func verifyHost(host string, remote net.Addr, key ssh.PublicKey) error {
 	return goph.AddKnownHost(host, remote, key, "")
 }
 
+var mutex = &sync.Mutex{}
+
 func run(ctx context.Context, client *goph.Client, cmd string, sensitiveStrings ...string) (stdout string, status int, err error) {
-	cmdSafe := "--quiet " + cmd
+	// disabling concurrent calls
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	cmdSafe := cmd
 	for _, toReplace := range sensitiveStrings {
 		cmdSafe = strings.Replace(cmdSafe, toReplace, "*******", -1)
 	}
 
-	tflog.Info(ctx, "SSH cmd", map[string]any{"cmd": cmdSafe})
+	tflog.Error(ctx, "SSH cmd", map[string]any{"cmd": cmdSafe})
 
-	stdoutRaw, err := client.Run(cmd)
+	stdoutRaw, err := client.RunContext(ctx, "--quiet "+cmd)
 
 	stdout = string(stdoutRaw)
 	for _, toReplace := range sensitiveStrings {
@@ -334,7 +341,7 @@ func run(ctx context.Context, client *goph.Client, cmd string, sensitiveStrings 
 
 	if err != nil {
 		status = parseStatusCode(err.Error())
-		tflog.Debug(ctx, "SSH: error", map[string]any{"status": status})
+		tflog.Debug(ctx, "SSH error", map[string]any{"status": status})
 		err = fmt.Errorf("Error [%d]: %s", status, stdout)
 	}
 	return

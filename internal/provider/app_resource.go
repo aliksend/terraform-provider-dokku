@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -24,7 +25,7 @@ type appResource struct {
 }
 
 type appResourceModel struct {
-	Name types.String `tfsdk:"name"`
+	AppName types.String `tfsdk:"app_name"`
 }
 
 // Metadata returns the resource type name.
@@ -46,7 +47,7 @@ func (r *appResource) Configure(_ context.Context, req resource.ConfigureRequest
 func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"name": schema.StringAttribute{
+			"app_name": schema.StringAttribute{
 				Required: true,
 			},
 		},
@@ -64,7 +65,7 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 	}
 
 	// Create new app
-	_, _, err := run(ctx, r.client, fmt.Sprintf("apps:create %s", plan.Name.ValueString()))
+	_, _, err := run(ctx, r.client, fmt.Sprintf("apps:create %s", plan.AppName.ValueString()))
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to create app",
@@ -92,7 +93,7 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 	}
 
 	// Check app existence
-	_, _, err := run(ctx, r.client, fmt.Sprintf("apps:exists %s", state.Name.ValueString()))
+	_, _, err := run(ctx, r.client, fmt.Sprintf("apps:exists %s", state.AppName.ValueString()))
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to read app",
@@ -111,7 +112,32 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// TODO don't update name!
+	// Retrieve values from plan
+	var plan letsencryptResourceModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	var state letsencryptResourceModel
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if plan.AppName.ValueString() != state.AppName.ValueString() {
+		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "Unable to change app name", "Unable to change app name")
+		return
+	}
+
+	// Nothing to update
+
+	diags = resp.State.Set(ctx, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
@@ -125,7 +151,7 @@ func (r *appResource) Delete(ctx context.Context, req resource.DeleteRequest, re
 	}
 
 	// Delete existing app
-	_, _, err := run(ctx, r.client, fmt.Sprintf("apps:destroy %s --force", state.Name.ValueString()))
+	_, _, err := run(ctx, r.client, fmt.Sprintf("apps:destroy %s --force", state.AppName.ValueString()))
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to read app",

@@ -71,7 +71,7 @@ func (r *pluginResource) Read(ctx context.Context, req resource.ReadRequest, res
 	}
 
 	// Read plugin
-	found := r.findPlugin(ctx, state.Name.ValueString(), resp.Diagnostics)
+	found := r.isPluginInstalled(ctx, state.Name.ValueString(), &resp.Diagnostics)
 	if !found {
 		resp.Diagnostics.AddError("Unable to find plugin", "Unable to find plugin with name "+state.Name.ValueString())
 		return
@@ -108,7 +108,7 @@ func (r *pluginResource) Create(ctx context.Context, req resource.CreateRequest,
 	// }
 
 	// Поэтому просто проверяем что плагин установлен и, если это не так, то выкидываем ошибку
-	found := r.findPlugin(ctx, plan.Name.ValueString(), resp.Diagnostics)
+	found := r.isPluginInstalled(ctx, plan.Name.ValueString(), &resp.Diagnostics)
 	if !found {
 		resp.Diagnostics.AddError("Plugin not installed", fmt.Sprintf("Plugin not installed. Run `sudo plugin:install %s %s` manually.", plan.URL.ValueString(), plan.Name.ValueString()))
 		return
@@ -177,7 +177,7 @@ func (r *pluginResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	// }
 }
 
-func (r *pluginResource) findPlugin(ctx context.Context, pluginNameToFind string, d diag.Diagnostics) bool {
+func (r *pluginResource) isPluginInstalled(ctx context.Context, pluginNameToFind string, d *diag.Diagnostics) bool {
 	stdout, _, err := run(ctx, r.client, "plugin:list")
 	if err != nil {
 		d.AddError(
@@ -187,7 +187,7 @@ func (r *pluginResource) findPlugin(ctx context.Context, pluginNameToFind string
 		return false
 	}
 
-	lines := strings.Split(stdout, "\n")
+	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
 	found := false
 	for _, line := range lines {
 		parts := strings.Split(strings.TrimSpace(line), " ")

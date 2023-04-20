@@ -29,7 +29,7 @@ type storageResource struct {
 }
 
 type storageResourceModel struct {
-	AppName   types.String `tfsdk:"app"`
+	AppName   types.String `tfsdk:"app_name"`
 	Name      types.String `tfsdk:"name"`
 	MountPath types.String `tfsdk:"mount_path"`
 }
@@ -53,7 +53,7 @@ func (r *storageResource) Configure(_ context.Context, req resource.ConfigureReq
 func (r *storageResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"app": schema.StringAttribute{
+			"app_name": schema.StringAttribute{
 				Required: true,
 			},
 			"name": schema.StringAttribute{
@@ -86,15 +86,18 @@ func (r *storageResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	lines := strings.Split(stdout, "\n")
+	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
 	found := false
 	for _, line := range lines {
+		if line == "" {
+			continue
+		}
 		parts := strings.Split(line, ":")
 		hostpath := strings.TrimSpace(parts[0])
 		if hostpath[:len(hostStoragePrefix)] != hostStoragePrefix {
 			continue
 		}
-		if state.Name.ValueString() != hostpath[:len(hostStoragePrefix)] {
+		if state.Name.ValueString() != hostpath[len(hostStoragePrefix):] {
 			continue
 		}
 		state.MountPath = basetypes.NewStringValue(parts[1])
@@ -124,12 +127,22 @@ func (r *storageResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	// Mount storage
-	_, _, err := run(ctx, r.client, fmt.Sprintf("storage:mount %s %s:%s", plan.AppName.ValueString(), hostStoragePrefix+plan.Name.ValueString(), plan.MountPath.ValueString()))
+	// Ensure storage
+	_, _, err := run(ctx, r.client, fmt.Sprintf("storage:ensure-directory %s", plan.Name.ValueString()))
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Unable to create storage",
-			"Unable to create storage. "+err.Error(),
+			"Unable to ensure storage",
+			"Unable to ensure storage. "+err.Error(),
+		)
+		return
+	}
+
+	// Mount storage
+	_, _, err = run(ctx, r.client, fmt.Sprintf("storage:mount %s %s:%s", plan.AppName.ValueString(), hostStoragePrefix+plan.Name.ValueString(), plan.MountPath.ValueString()))
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to mount storage",
+			"Unable to mount storage. "+err.Error(),
 		)
 		return
 	}
@@ -159,7 +172,7 @@ func (r *storageResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	if plan.AppName.ValueString() != state.AppName.ValueString() {
-		resp.Diagnostics.AddAttributeError(path.Root("app"), "Unable to change app name", "Unable to change app name")
+		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "Unable to change app name", "Unable to change app name")
 		return
 	}
 	if plan.Name.ValueString() != state.Name.ValueString() {
@@ -171,8 +184,18 @@ func (r *storageResource) Update(ctx context.Context, req resource.UpdateRequest
 	_, _, err := run(ctx, r.client, fmt.Sprintf("storage:unmount %s %s:%s", state.AppName.ValueString(), hostStoragePrefix+state.Name.ValueString(), state.MountPath.ValueString()))
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Unable to delete storage",
-			"Unable to delete storage. "+err.Error(),
+			"Unable to unmount storage",
+			"Unable to unmount storage. "+err.Error(),
+		)
+		return
+	}
+
+	// Ensure storage
+	_, _, err = run(ctx, r.client, fmt.Sprintf("storage:ensure-directory %s", plan.Name.ValueString()))
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to ensure storage",
+			"Unable to ensure storage. "+err.Error(),
 		)
 		return
 	}
@@ -208,8 +231,8 @@ func (r *storageResource) Delete(ctx context.Context, req resource.DeleteRequest
 	_, _, err := run(ctx, r.client, fmt.Sprintf("storage:unmount %s %s:%s", state.AppName.ValueString(), hostStoragePrefix+state.Name.ValueString(), state.MountPath.ValueString()))
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Unable to delete storage",
-			"Unable to delete storage. "+err.Error(),
+			"Unable to unmount storage",
+			"Unable to unmount storage. "+err.Error(),
 		)
 		return
 	}
