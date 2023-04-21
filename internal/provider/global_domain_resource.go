@@ -13,31 +13,30 @@ import (
 )
 
 var (
-	_ resource.Resource                = &domainResource{}
-	_ resource.ResourceWithConfigure   = &domainResource{}
-	_ resource.ResourceWithImportState = &domainResource{}
+	_ resource.Resource                = &globalDomainResource{}
+	_ resource.ResourceWithConfigure   = &globalDomainResource{}
+	_ resource.ResourceWithImportState = &globalDomainResource{}
 )
 
-func NewDomainResource() resource.Resource {
-	return &domainResource{}
+func NewGlobalDomainResource() resource.Resource {
+	return &globalDomainResource{}
 }
 
-type domainResource struct {
+type globalDomainResource struct {
 	client *goph.Client
 }
 
-type domainResourceModel struct {
-	AppName types.String `tfsdk:"app_name"`
-	Domain  types.String `tfsdk:"domain"`
+type globalDomainResourceModel struct {
+	Domain types.String `tfsdk:"domain"`
 }
 
 // Metadata returns the resource type name.
-func (r *domainResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_domain"
+func (r *globalDomainResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_global_domain"
 }
 
 // Configure adds the provider configured client to the resource.
-func (r *domainResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *globalDomainResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -47,12 +46,9 @@ func (r *domainResource) Configure(_ context.Context, req resource.ConfigureRequ
 }
 
 // Schema defines the schema for the resource.
-func (r *domainResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *globalDomainResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"app_name": schema.StringAttribute{
-				Required: true,
-			},
 			"domain": schema.StringAttribute{
 				Required: true,
 			},
@@ -61,9 +57,9 @@ func (r *domainResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *domainResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *globalDomainResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state domainResourceModel
+	var state globalDomainResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -71,7 +67,7 @@ func (r *domainResource) Read(ctx context.Context, req resource.ReadRequest, res
 	}
 
 	// Read domains
-	stdout, _, err := run(ctx, r.client, fmt.Sprintf("domains:report %s", state.AppName.ValueString()))
+	stdout, _, err := run(ctx, r.client, "domains:report --global")
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to read domains",
@@ -85,7 +81,7 @@ func (r *domainResource) Read(ctx context.Context, req resource.ReadRequest, res
 	for _, line := range lines {
 		parts := strings.Split(line, ":")
 		key := strings.TrimSpace(parts[0])
-		if key == "Domains app vhosts" {
+		if key == "Domains global vhosts" {
 			domainList := strings.TrimSpace(parts[1])
 			if domainList != "" {
 				for _, domain := range strings.Split(domainList, " ") {
@@ -113,9 +109,9 @@ func (r *domainResource) Read(ctx context.Context, req resource.ReadRequest, res
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *domainResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *globalDomainResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
-	var plan domainResourceModel
+	var plan globalDomainResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -123,7 +119,7 @@ func (r *domainResource) Create(ctx context.Context, req resource.CreateRequest,
 	}
 
 	// Add domain
-	_, _, err := run(ctx, r.client, fmt.Sprintf("domains:add %s %s", plan.AppName.ValueString(), plan.Domain.ValueString()))
+	_, _, err := run(ctx, r.client, fmt.Sprintf("domains:add-global %s", plan.Domain.ValueString()))
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to create domain",
@@ -141,28 +137,23 @@ func (r *domainResource) Create(ctx context.Context, req resource.CreateRequest,
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *domainResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *globalDomainResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	// Retrieve values from plan
-	var plan domainResourceModel
+	var plan globalDomainResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	var state domainResourceModel
+	var state globalDomainResourceModel
 	diags = req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if plan.AppName.ValueString() != state.AppName.ValueString() {
-		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "Unable to change app name", "Unable to change app name")
-		return
-	}
-
 	if plan.Domain.ValueString() != state.Domain.ValueString() {
-		_, _, err := run(ctx, r.client, fmt.Sprintf("domains:remove %s %s", state.AppName.ValueString(), state.Domain.ValueString()))
+		_, _, err := run(ctx, r.client, fmt.Sprintf("domains:remove-global %s", state.Domain.ValueString()))
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Unable to create domains",
@@ -172,7 +163,7 @@ func (r *domainResource) Update(ctx context.Context, req resource.UpdateRequest,
 		}
 
 		// Add domain
-		_, _, err = run(ctx, r.client, fmt.Sprintf("domains:add %s %s", plan.AppName.ValueString(), plan.Domain.ValueString()))
+		_, _, err = run(ctx, r.client, fmt.Sprintf("domains:add-global %s", plan.Domain.ValueString()))
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Unable to create domain",
@@ -190,9 +181,9 @@ func (r *domainResource) Update(ctx context.Context, req resource.UpdateRequest,
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *domainResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *globalDomainResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
-	var state domainResourceModel
+	var state globalDomainResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -200,7 +191,7 @@ func (r *domainResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	}
 
 	// Clear domains
-	_, _, err := run(ctx, r.client, fmt.Sprintf("domains:remove %s %s", state.AppName.ValueString(), state.Domain.ValueString()))
+	_, _, err := run(ctx, r.client, fmt.Sprintf("domains:remove-global %s", state.Domain.ValueString()))
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to delete domain",
@@ -210,8 +201,7 @@ func (r *domainResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	}
 }
 
-func (r *domainResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts := strings.Split(req.ID, " ")
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("domain"), parts[1])...)
+func (r *globalDomainResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	// Retrieve import ID and save to app_name attribute
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("domain"), req.ID)...)
 }
