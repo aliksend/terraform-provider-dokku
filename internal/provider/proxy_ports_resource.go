@@ -18,6 +18,7 @@ import (
 var (
 	_ resource.Resource              = &proxyPortResource{}
 	_ resource.ResourceWithConfigure = &proxyPortResource{}
+	// _ resource.ResourceWithImportState = &proxyPortResource{} // app_name + [scheme +] host_port
 )
 
 func NewProxyPortsResource() resource.Resource {

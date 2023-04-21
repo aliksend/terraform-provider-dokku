@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -12,8 +13,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &postgresLinkResource{}
-	_ resource.ResourceWithConfigure = &postgresLinkResource{}
+	_ resource.Resource                = &postgresLinkResource{}
+	_ resource.ResourceWithConfigure   = &postgresLinkResource{}
+	_ resource.ResourceWithImportState = &postgresLinkResource{}
 )
 
 func NewPostgresLinkResource() resource.Resource {
@@ -196,4 +198,10 @@ func (r *postgresLinkResource) Delete(ctx context.Context, req resource.DeleteRe
 		)
 		return
 	}
+}
+
+func (r *postgresLinkResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	parts := strings.Split(req.ID, " ")
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_name"), parts[1])...)
 }

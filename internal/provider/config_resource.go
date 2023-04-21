@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &configResource{}
-	_ resource.ResourceWithConfigure = &configResource{}
+	_ resource.Resource                = &configResource{}
+	_ resource.ResourceWithConfigure   = &configResource{}
+	_ resource.ResourceWithImportState = &configResource{}
 )
 
 func NewConfigResource() resource.Resource {
@@ -182,4 +183,10 @@ func (r *configResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		)
 		return
 	}
+}
+
+func (r *configResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	parts := strings.Split(req.ID, " ")
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("name"), parts[1])...)
 }

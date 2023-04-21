@@ -16,6 +16,7 @@ import (
 var (
 	_ resource.Resource              = &pluginResource{}
 	_ resource.ResourceWithConfigure = &pluginResource{}
+	// _ resource.ResourceWithImportState = &pluginResource{} // no way to read URL from
 )
 
 func NewPluginResource() resource.Resource {

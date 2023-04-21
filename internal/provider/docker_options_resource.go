@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &dockerOptionResource{}
-	_ resource.ResourceWithConfigure = &dockerOptionResource{}
+	_ resource.Resource                = &dockerOptionResource{}
+	_ resource.ResourceWithConfigure   = &dockerOptionResource{}
+	_ resource.ResourceWithImportState = &dockerOptionResource{}
 )
 
 func NewDockerOptionResource() resource.Resource {
@@ -209,4 +210,11 @@ func (r *dockerOptionResource) Delete(ctx context.Context, req resource.DeleteRe
 		)
 		return
 	}
+}
+
+func (r *dockerOptionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	parts := strings.Split(req.ID, " ")
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("phase"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("value"), parts[2])...)
 }

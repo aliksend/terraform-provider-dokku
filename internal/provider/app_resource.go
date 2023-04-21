@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &appResource{}
-	_ resource.ResourceWithConfigure = &appResource{}
+	_ resource.Resource                = &appResource{}
+	_ resource.ResourceWithConfigure   = &appResource{}
+	_ resource.ResourceWithImportState = &appResource{}
 )
 
 func NewAppResource() resource.Resource {
@@ -159,4 +160,9 @@ func (r *appResource) Delete(ctx context.Context, req resource.DeleteRequest, re
 		)
 		return
 	}
+}
+
+func (r *appResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	// Retrieve import ID and save to app_name attribute
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), req.ID)...)
 }

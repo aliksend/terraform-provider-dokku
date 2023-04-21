@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &letsencryptResource{}
-	_ resource.ResourceWithConfigure = &letsencryptResource{}
+	_ resource.Resource                = &letsencryptResource{}
+	_ resource.ResourceWithConfigure   = &letsencryptResource{}
+	_ resource.ResourceWithImportState = &letsencryptResource{}
 )
 
 func NewLetsencryptResource() resource.Resource {
@@ -189,4 +190,9 @@ func (r *letsencryptResource) Delete(ctx context.Context, req resource.DeleteReq
 		return
 	}
 
+}
+
+func (r *letsencryptResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	// Retrieve import ID and save to app_name attribute
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), req.ID)...)
 }

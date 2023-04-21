@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &storageResource{}
-	_ resource.ResourceWithConfigure = &storageResource{}
+	_ resource.Resource                = &storageResource{}
+	_ resource.ResourceWithConfigure   = &storageResource{}
+	_ resource.ResourceWithImportState = &storageResource{}
 )
 
 const hostStoragePrefix = "/var/lib/dokku/data/storage/"
@@ -236,4 +237,10 @@ func (r *storageResource) Delete(ctx context.Context, req resource.DeleteRequest
 		)
 		return
 	}
+}
+
+func (r *storageResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	parts := strings.Split(req.ID, " ")
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("name"), parts[1])...)
 }

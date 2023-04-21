@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &checksResource{}
-	_ resource.ResourceWithConfigure = &checksResource{}
+	_ resource.Resource                = &checksResource{}
+	_ resource.ResourceWithConfigure   = &checksResource{}
+	_ resource.ResourceWithImportState = &checksResource{}
 )
 
 func NewChecksResource() resource.Resource {
@@ -208,4 +209,9 @@ func (r *checksResource) setChecks(ctx context.Context, appName string, status s
 		)
 		return
 	}
+}
+
+func (r *checksResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	// Retrieve import ID and save to app_name attribute
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), req.ID)...)
 }

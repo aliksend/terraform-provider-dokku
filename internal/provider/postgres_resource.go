@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &postgresResource{}
-	_ resource.ResourceWithConfigure = &postgresResource{}
+	_ resource.Resource                = &postgresResource{}
+	_ resource.ResourceWithConfigure   = &postgresResource{}
+	_ resource.ResourceWithImportState = &postgresResource{}
 )
 
 func NewPostgresResource() resource.Resource {
@@ -176,4 +177,9 @@ func (r *postgresResource) Delete(ctx context.Context, req resource.DeleteReques
 		)
 		return
 	}
+}
+
+func (r *postgresResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	// Retrieve import ID and save to service_name attribute
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_name"), req.ID)...)
 }

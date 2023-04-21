@@ -15,8 +15,9 @@ import (
 // TODO global domains support
 
 var (
-	_ resource.Resource              = &domainResource{}
-	_ resource.ResourceWithConfigure = &domainResource{}
+	_ resource.Resource                = &domainResource{}
+	_ resource.ResourceWithConfigure   = &domainResource{}
+	_ resource.ResourceWithImportState = &domainResource{}
 )
 
 func NewDomainResource() resource.Resource {
@@ -209,4 +210,10 @@ func (r *domainResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		)
 		return
 	}
+}
+
+func (r *domainResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	parts := strings.Split(req.ID, " ")
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("domain"), parts[1])...)
 }

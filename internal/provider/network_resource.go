@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &networkResource{}
-	_ resource.ResourceWithConfigure = &networkResource{}
+	_ resource.Resource                = &networkResource{}
+	_ resource.ResourceWithConfigure   = &networkResource{}
+	_ resource.ResourceWithImportState = &networkResource{}
 )
 
 func NewNetworkResource() resource.Resource {
@@ -202,7 +203,6 @@ func (r *networkResource) Delete(ctx context.Context, req resource.DeleteRequest
 }
 
 func (r *networkResource) ensureAndSetNetwork(ctx context.Context, plan networkResourceModel, d *diag.Diagnostics) {
-
 	// Ensure network
 	stdout, _, err := run(ctx, r.client, fmt.Sprintf("network:exists %s", plan.Name.ValueString()))
 	if err != nil {
@@ -233,4 +233,10 @@ func (r *networkResource) ensureAndSetNetwork(ctx context.Context, plan networkR
 		)
 		return
 	}
+}
+
+func (r *networkResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	parts := strings.Split(req.ID, " ")
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("type"), parts[1])...)
 }
