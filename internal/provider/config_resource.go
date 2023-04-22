@@ -2,16 +2,15 @@ package provider
 
 import (
 	"context"
-	"encoding/base64"
-	"fmt"
 	"strings"
+
+	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-	"github.com/melbahja/goph"
 )
 
 var (
@@ -25,7 +24,7 @@ func NewConfigResource() resource.Resource {
 }
 
 type configResource struct {
-	client *goph.Client
+	client *dokkuclient.Client
 }
 
 type configResourceModel struct {
@@ -46,7 +45,7 @@ func (r *configResource) Configure(_ context.Context, req resource.ConfigureRequ
 	}
 
 	//nolint:forcetypeassert
-	r.client = req.ProviderData.(*goph.Client)
+	r.client = req.ProviderData.(*dokkuclient.Client)
 }
 
 // Schema defines the schema for the resource.
@@ -77,7 +76,7 @@ func (r *configResource) Read(ctx context.Context, req resource.ReadRequest, res
 	}
 
 	// Read config value
-	stdout, _, err := run(ctx, r.client, fmt.Sprintf("config:get %s %s", state.AppName.ValueString(), state.Name.ValueString()))
+	value, err := r.client.ConfigGet(ctx, state.AppName.ValueString(), state.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to read config",
@@ -85,8 +84,11 @@ func (r *configResource) Read(ctx context.Context, req resource.ReadRequest, res
 		)
 		return
 	}
-
-	state.Value = basetypes.NewStringValue(strings.TrimSuffix(stdout, "\n"))
+	if value == "" {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+	state.Value = basetypes.NewStringValue(value)
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, &state)
@@ -106,9 +108,22 @@ func (r *configResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
+	// Read config value
+	value, err := r.client.ConfigGet(ctx, plan.AppName.ValueString(), plan.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read config",
+			"Unable to read config. "+err.Error(),
+		)
+		return
+	}
+	if value != "" {
+		resp.Diagnostics.AddError("Config with this name already exists", "Config with this name already exists")
+		return
+	}
+
 	// Set config
-	// TODO --no-restart ?
-	_, _, err := run(ctx, r.client, fmt.Sprintf("config:set --encoded %s %s=%q", plan.AppName.ValueString(), plan.Name.ValueString(), base64.StdEncoding.EncodeToString([]byte(plan.Value.ValueString()))))
+	err = r.client.ConfigSet(ctx, plan.AppName.ValueString(), plan.Name.ValueString(), plan.Value.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to set config value",
@@ -146,9 +161,22 @@ func (r *configResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
+	// Read config value
+	value, err := r.client.ConfigGet(ctx, state.AppName.ValueString(), state.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read config",
+			"Unable to read config. "+err.Error(),
+		)
+		return
+	}
+	if value == "" {
+		resp.Diagnostics.AddError("Config not found", "Config with this name already exists")
+		return
+	}
+
 	// Set config value
-	// TODO --no-restart?
-	_, _, err := run(ctx, r.client, fmt.Sprintf("config:set --encoded %s %s=%q", plan.AppName.ValueString(), plan.Name.ValueString(), base64.StdEncoding.EncodeToString([]byte(plan.Value.ValueString()))))
+	err = r.client.ConfigSet(ctx, plan.AppName.ValueString(), plan.Name.ValueString(), plan.Value.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to set config value",
@@ -174,8 +202,21 @@ func (r *configResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
+	// Read config value
+	value, err := r.client.ConfigGet(ctx, state.AppName.ValueString(), state.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read config",
+			"Unable to read config. "+err.Error(),
+		)
+		return
+	}
+	if value == "" {
+		return
+	}
+
 	// Clear config
-	_, _, err := run(ctx, r.client, fmt.Sprintf("config:unset %s %s", state.AppName.ValueString(), state.Name.ValueString()))
+	err = r.client.ConfigUnset(ctx, state.AppName.ValueString(), state.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to unset config value",

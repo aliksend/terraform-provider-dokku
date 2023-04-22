@@ -2,14 +2,14 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"strings"
+
+	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/melbahja/goph"
 )
 
 var (
@@ -23,7 +23,7 @@ func NewPostgresLinkResource() resource.Resource {
 }
 
 type postgresLinkResource struct {
-	client *goph.Client
+	client *dokkuclient.Client
 }
 
 type postgresLinkResourceModel struct {
@@ -43,7 +43,7 @@ func (r *postgresLinkResource) Configure(_ context.Context, req resource.Configu
 	}
 
 	//nolint:forcetypeassert
-	r.client = req.ProviderData.(*goph.Client)
+	r.client = req.ProviderData.(*dokkuclient.Client)
 }
 
 // Schema defines the schema for the resource.
@@ -71,32 +71,30 @@ func (r *postgresLinkResource) Read(ctx context.Context, req resource.ReadReques
 	}
 
 	// Check service existence
-	stdout, _, err := run(ctx, r.client, fmt.Sprintf("postgres:exists %s", state.ServiceName.ValueString()))
+	exists, err := r.client.PostgresServiceExists(ctx, state.ServiceName.ValueString())
 	if err != nil {
-		if strings.Contains(stdout, fmt.Sprintf("Postgres service %s does not exist", state.ServiceName.ValueString())) {
-			resp.Diagnostics.AddError("Unable to find postgres service", "Unable to find postgres service")
-			return
-		}
-
 		resp.Diagnostics.AddError(
 			"Unable to check postgres service existence",
 			"Unable to check postgres service existence. "+err.Error(),
 		)
 		return
 	}
+	if !exists {
+		resp.Diagnostics.AddError("Unable to find postgres service", "Unable to find postgres service")
+		return
+	}
 
 	// Check link existence
-	stdout, _, err = run(ctx, r.client, fmt.Sprintf("postgres:linked %s %s", state.ServiceName.ValueString(), state.AppName.ValueString()))
+	exists, err = r.client.PostgresLinkExists(ctx, state.ServiceName.ValueString(), state.AppName.ValueString())
 	if err != nil {
-		if strings.Contains(stdout, fmt.Sprintf("Service %s is not linked to %s", state.ServiceName.ValueString(), state.AppName.ValueString())) {
-			resp.Diagnostics.AddError("Service not linked to app", "Service not linked to app")
-			return
-		}
-
 		resp.Diagnostics.AddError(
 			"Unable to check postgres link existence",
 			"Unable to check postgres link existence. "+err.Error(),
 		)
+		return
+	}
+	if !exists {
+		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -118,8 +116,36 @@ func (r *postgresLinkResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
+	// Check service existence
+	exists, err := r.client.PostgresServiceExists(ctx, plan.ServiceName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to check postgres service existence",
+			"Unable to check postgres service existence. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		resp.Diagnostics.AddError("Unable to find postgres service", "Unable to find postgres service")
+		return
+	}
+
+	// Check link existence
+	exists, err = r.client.PostgresLinkExists(ctx, plan.ServiceName.ValueString(), plan.AppName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to check postgres link existence",
+			"Unable to check postgres link existence. "+err.Error(),
+		)
+		return
+	}
+	if exists {
+		resp.Diagnostics.AddError("Service already linked to app", "Service already linked to app")
+		return
+	}
+
 	// Create link
-	_, _, err := run(ctx, r.client, fmt.Sprintf("postgres:link %s %s", plan.ServiceName.ValueString(), plan.AppName.ValueString()))
+	err = r.client.PostgresLinkCreate(ctx, plan.ServiceName.ValueString(), plan.AppName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to create postgres link",
@@ -152,8 +178,42 @@ func (r *postgresLinkResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
+	// Check service existence
+	exists, err := r.client.PostgresServiceExists(ctx, state.ServiceName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to check postgres service existence",
+			"Unable to check postgres service existence. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		resp.Diagnostics.AddError(
+			"Unable to find postgres service",
+			"Unable to find postgres service",
+		)
+		return
+	}
+
+	// Check link existence
+	exists, err = r.client.PostgresLinkExists(ctx, state.ServiceName.ValueString(), state.AppName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to check postgres link existence",
+			"Unable to check postgres link existence. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		resp.Diagnostics.AddError(
+			"Unable to find postgres link",
+			"Unable to find postgres link",
+		)
+		return
+	}
+
 	// Unlink service
-	_, _, err := run(ctx, r.client, fmt.Sprintf("postgres:unlink %s %s", state.ServiceName.ValueString(), state.AppName.ValueString()))
+	err = r.client.PostgresLinkRemove(ctx, state.ServiceName.ValueString(), state.AppName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to unlink service",
@@ -163,7 +223,7 @@ func (r *postgresLinkResource) Update(ctx context.Context, req resource.UpdateRe
 	}
 
 	// Create link
-	_, _, err = run(ctx, r.client, fmt.Sprintf("postgres:link %s %s", plan.ServiceName.ValueString(), plan.AppName.ValueString()))
+	err = r.client.PostgresLinkCreate(ctx, plan.ServiceName.ValueString(), plan.AppName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to create postgres link",
@@ -189,8 +249,34 @@ func (r *postgresLinkResource) Delete(ctx context.Context, req resource.DeleteRe
 		return
 	}
 
+	// Check service existence
+	exists, err := r.client.PostgresServiceExists(ctx, state.ServiceName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to check postgres service existence",
+			"Unable to check postgres service existence. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		return
+	}
+
+	// Check link existence
+	exists, err = r.client.PostgresLinkExists(ctx, state.ServiceName.ValueString(), state.AppName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to check postgres link existence",
+			"Unable to check postgres link existence. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		return
+	}
+
 	// Unlink service
-	_, _, err := run(ctx, r.client, fmt.Sprintf("postgres:unlink %s %s", state.ServiceName.ValueString(), state.AppName.ValueString()))
+	err = r.client.PostgresLinkRemove(ctx, state.ServiceName.ValueString(), state.AppName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to unlink service",

@@ -2,14 +2,14 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"strings"
+
+	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/melbahja/goph"
 )
 
 var (
@@ -23,7 +23,7 @@ func NewDockerOptionResource() resource.Resource {
 }
 
 type dockerOptionResource struct {
-	client *goph.Client
+	client *dokkuclient.Client
 }
 
 type dockerOptionResourceModel struct {
@@ -44,7 +44,7 @@ func (r *dockerOptionResource) Configure(_ context.Context, req resource.Configu
 	}
 
 	//nolint:forcetypeassert
-	r.client = req.ProviderData.(*goph.Client)
+	r.client = req.ProviderData.(*dokkuclient.Client)
 }
 
 // Schema defines the schema for the resource.
@@ -75,7 +75,7 @@ func (r *dockerOptionResource) Read(ctx context.Context, req resource.ReadReques
 	}
 
 	// Read docker option
-	stdout, _, err := run(ctx, r.client, fmt.Sprintf("docker-options:report %s", state.AppName.ValueString()))
+	exists, err := r.client.DockerOptionExists(ctx, state.AppName.ValueString(), state.Phase.ValueString(), state.Value.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to read docker options",
@@ -83,27 +83,8 @@ func (r *dockerOptionResource) Read(ctx context.Context, req resource.ReadReques
 		)
 		return
 	}
-
-	expectedName := fmt.Sprintf("Docker options %s", state.Phase.ValueString())
-	expectedOption := state.Value.ValueString()
-	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
-	found := false
-	for _, line := range lines {
-		parts := strings.SplitN(line, ":", 2)
-		name := strings.TrimSpace(parts[0])
-		if expectedName != name {
-			continue
-		}
-		existingOptions := strings.TrimSpace(parts[1])
-		if !strings.Contains(existingOptions, expectedOption) {
-			resp.Diagnostics.AddError("Docker options doesn't contain expected option", "Docker options "+existingOptions+" doesn't contain expected option "+expectedOption)
-			return
-		}
-		found = true
-		break
-	}
-	if !found {
-		resp.Diagnostics.AddError("Unable to find docker option", "Unable to find docker option for phase "+state.Phase.ValueString())
+	if !exists {
+		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -125,8 +106,21 @@ func (r *dockerOptionResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
+	exists, err := r.client.DockerOptionExists(ctx, plan.AppName.ValueString(), plan.Phase.ValueString(), plan.Value.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read docker-option",
+			"Unable to read docker-option. "+err.Error(),
+		)
+		return
+	}
+	if exists {
+		resp.Diagnostics.AddError("Docker option already exists", "Docker option already exists")
+		return
+	}
+
 	// Add docker-option
-	_, _, err := run(ctx, r.client, fmt.Sprintf("docker-options:add %s %s %s", plan.AppName.ValueString(), plan.Phase.ValueString(), plan.Value.ValueString()))
+	err = r.client.DockerOptionAdd(ctx, plan.AppName.ValueString(), plan.Phase.ValueString(), plan.Value.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to add docker-option",
@@ -164,8 +158,21 @@ func (r *dockerOptionResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
+	exists, err := r.client.DockerOptionExists(ctx, state.AppName.ValueString(), state.Phase.ValueString(), state.Value.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read docker-option",
+			"Unable to read docker-option. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		resp.Diagnostics.AddError("Docker option not found", "Docker option not found")
+		return
+	}
+
 	// Remove docker-option
-	_, _, err := run(ctx, r.client, fmt.Sprintf("docker-options:remove %s %s %s", state.AppName.ValueString(), state.Phase.ValueString(), state.Value.ValueString()))
+	err = r.client.DockerOptionRemove(ctx, state.AppName.ValueString(), state.Phase.ValueString(), state.Value.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to remove docker-option",
@@ -175,7 +182,7 @@ func (r *dockerOptionResource) Update(ctx context.Context, req resource.UpdateRe
 	}
 
 	// Add docker-option
-	_, _, err = run(ctx, r.client, fmt.Sprintf("docker-options:add %s %s %s", plan.AppName.ValueString(), plan.Phase.ValueString(), plan.Value.ValueString()))
+	err = r.client.DockerOptionAdd(ctx, plan.AppName.ValueString(), plan.Phase.ValueString(), plan.Value.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to add docker-option",
@@ -201,8 +208,20 @@ func (r *dockerOptionResource) Delete(ctx context.Context, req resource.DeleteRe
 		return
 	}
 
+	exists, err := r.client.DockerOptionExists(ctx, state.AppName.ValueString(), state.Phase.ValueString(), state.Value.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read docker options",
+			"Unable to read docker options. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		return
+	}
+
 	// Remove docker-option
-	_, _, err := run(ctx, r.client, fmt.Sprintf("docker-options:remove %s %s %s", state.AppName.ValueString(), state.Phase.ValueString(), state.Value.ValueString()))
+	err = r.client.DockerOptionRemove(ctx, state.AppName.ValueString(), state.Phase.ValueString(), state.Value.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to remove docker-option",

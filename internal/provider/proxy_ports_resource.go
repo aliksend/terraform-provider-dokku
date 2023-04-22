@@ -2,17 +2,14 @@ package provider
 
 import (
 	"context"
-	"fmt"
-	"regexp"
-	"strconv"
-	"strings"
+
+	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-	"github.com/melbahja/goph"
 )
 
 var (
@@ -26,7 +23,7 @@ func NewProxyPortsResource() resource.Resource {
 }
 
 type proxyPortResource struct {
-	client *goph.Client
+	client *dokkuclient.Client
 }
 
 type proxyPortResourceModel struct {
@@ -48,7 +45,7 @@ func (r *proxyPortResource) Configure(_ context.Context, req resource.ConfigureR
 	}
 
 	//nolint:forcetypeassert
-	r.client = req.ProviderData.(*goph.Client)
+	r.client = req.ProviderData.(*dokkuclient.Client)
 }
 
 // Schema defines the schema for the resource.
@@ -82,7 +79,7 @@ func (r *proxyPortResource) Read(ctx context.Context, req resource.ReadRequest, 
 	}
 
 	// Read proxy ports
-	stdout, _, err := run(ctx, r.client, fmt.Sprintf("proxy:ports %s", state.AppName.ValueString()))
+	exists, scheme, containerPort, err := r.client.ProxyPortExists(ctx, state.AppName.ValueString(), state.HostPort.ValueInt64())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to read proxy ports",
@@ -90,38 +87,13 @@ func (r *proxyPortResource) Read(ctx context.Context, req resource.ReadRequest, 
 		)
 		return
 	}
-
-	found := false
-	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
-	for _, line := range lines {
-		parts := regexp.MustCompile(`\s+`).Split(strings.TrimSpace(line), -1)
-		scheme := strings.TrimSpace(parts[0])
-		hostPortStr := strings.TrimSpace(parts[1])
-		containerPortStr := strings.TrimSpace(parts[2])
-
-		hostPort, err := strconv.ParseInt(hostPortStr, 10, 64)
-		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("host_port"), "Invalid value", "Invalid value. "+err.Error())
-		}
-		containerPort, err := strconv.ParseInt(containerPortStr, 10, 64)
-		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("container_port"), "Invalid value", "Invalid value. "+err.Error())
-		}
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		if state.HostPort.ValueInt64() == hostPort {
-			state.Scheme = basetypes.NewStringValue(scheme)
-			state.ContainerPort = basetypes.NewInt64Value(containerPort)
-			found = true
-			break
-		}
-	}
-	if !found {
-		resp.Diagnostics.AddError("Unable to find port", "Unable to find port")
+	if !exists {
+		resp.State.RemoveResource(ctx)
 		return
 	}
+
+	state.Scheme = basetypes.NewStringValue(scheme)
+	state.ContainerPort = basetypes.NewInt64Value(containerPort)
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, &state)
@@ -141,8 +113,22 @@ func (r *proxyPortResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
+	// Read proxy ports
+	exists, _, _, err := r.client.ProxyPortExists(ctx, plan.AppName.ValueString(), plan.HostPort.ValueInt64())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read proxy ports",
+			"Unable to read proxy ports. "+err.Error(),
+		)
+		return
+	}
+	if exists {
+		resp.Diagnostics.AddError("Port already assigned for this app", "Port already assigned for this app")
+		return
+	}
+
 	// Set proxy port
-	_, _, err := run(ctx, r.client, fmt.Sprintf("proxy:ports-add %s %s:%d:%d", plan.AppName.ValueString(), plan.Scheme.ValueString(), plan.HostPort.ValueInt64(), plan.ContainerPort.ValueInt64()))
+	err = r.client.ProxyPortAdd(ctx, plan.AppName.ValueString(), plan.Scheme.ValueString(), plan.HostPort.ValueInt64(), plan.ContainerPort.ValueInt64())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to add proxy port",
@@ -180,8 +166,22 @@ func (r *proxyPortResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
+	// Read proxy ports
+	exists, _, _, err := r.client.ProxyPortExists(ctx, state.AppName.ValueString(), state.HostPort.ValueInt64())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read proxy ports",
+			"Unable to read proxy ports. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		resp.Diagnostics.AddError("Proxy port not exists", "Proxy port not exists")
+		return
+	}
+
 	// Unset proxy port
-	_, _, err := run(ctx, r.client, fmt.Sprintf("proxy:ports-remove %s %d", state.AppName.ValueString(), state.HostPort.ValueInt64()))
+	err = r.client.ProxyPortRemove(ctx, state.AppName.ValueString(), state.HostPort.ValueInt64())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to remove proxy port",
@@ -191,7 +191,7 @@ func (r *proxyPortResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	// Set proxy port
-	_, _, err = run(ctx, r.client, fmt.Sprintf("proxy:ports-add %s %s:%d:%d", plan.AppName.ValueString(), plan.Scheme.ValueString(), plan.HostPort.ValueInt64(), plan.ContainerPort.ValueInt64()))
+	err = r.client.ProxyPortAdd(ctx, plan.AppName.ValueString(), plan.Scheme.ValueString(), plan.HostPort.ValueInt64(), plan.ContainerPort.ValueInt64())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to add proxy port",
@@ -216,9 +216,21 @@ func (r *proxyPortResource) Delete(ctx context.Context, req resource.DeleteReque
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	// Read proxy ports
+	exists, _, _, err := r.client.ProxyPortExists(ctx, state.AppName.ValueString(), state.HostPort.ValueInt64())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read proxy ports",
+			"Unable to read proxy ports. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		return
+	}
 
 	// Unset proxy port
-	_, _, err := run(ctx, r.client, fmt.Sprintf("proxy:ports-remove %s %d", state.AppName.ValueString(), state.HostPort.ValueInt64()))
+	err = r.client.ProxyPortRemove(ctx, state.AppName.ValueString(), state.HostPort.ValueInt64())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to remove proxy port",

@@ -3,14 +3,13 @@ package provider
 import (
 	"context"
 	"fmt"
-	"strings"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
+	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
+
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/melbahja/goph"
 )
 
 var (
@@ -24,7 +23,7 @@ func NewPluginResource() resource.Resource {
 }
 
 type pluginResource struct {
-	client *goph.Client
+	client *dokkuclient.Client
 }
 
 type pluginResourceModel struct {
@@ -44,7 +43,7 @@ func (r *pluginResource) Configure(_ context.Context, req resource.ConfigureRequ
 	}
 
 	//nolint:forcetypeassert
-	r.client = req.ProviderData.(*goph.Client)
+	r.client = req.ProviderData.(*dokkuclient.Client)
 }
 
 // Schema defines the schema for the resource.
@@ -72,9 +71,16 @@ func (r *pluginResource) Read(ctx context.Context, req resource.ReadRequest, res
 	}
 
 	// Read plugin
-	found := r.isPluginInstalled(ctx, state.Name.ValueString(), &resp.Diagnostics)
+	found, err := r.client.PluginIsInstalled(ctx, state.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read plugin",
+			"Unable to read plugin. "+err.Error(),
+		)
+		return
+	}
 	if !found {
-		resp.Diagnostics.AddError("Unable to find plugin", "Unable to find plugin with name "+state.Name.ValueString())
+		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -97,19 +103,14 @@ func (r *pluginResource) Create(ctx context.Context, req resource.CreateRequest,
 	}
 
 	// Невозможно установить плагин потому что это требует root-прав
-
-	// // Install plugin
-	// _, _, err := run(ctx, r.client, fmt.Sprintf("plugin:install %s %s", plan.URL.ValueString(), plan.Name.ValueString()))
-	// if err != nil {
-	// 	resp.Diagnostics.AddError(
-	// 		"Unable to install plugin",
-	// 		"Unable to install plugin. "+err.Error(),
-	// 	)
-	// 	return
-	// }
-
 	// Поэтому просто проверяем что плагин установлен и, если это не так, то выкидываем ошибку
-	found := r.isPluginInstalled(ctx, plan.Name.ValueString(), &resp.Diagnostics)
+	found, err := r.client.PluginIsInstalled(ctx, plan.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read plugin",
+			"Unable to read plugin. "+err.Error(),
+		)
+	}
 	if !found {
 		resp.Diagnostics.AddError("Plugin not installed", fmt.Sprintf("Plugin not installed. Run `sudo plugin:install %s %s` manually.", plan.URL.ValueString(), plan.Name.ValueString()))
 		return
@@ -148,6 +149,8 @@ func (r *pluginResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
+	// Nothing to update
+
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -166,38 +169,4 @@ func (r *pluginResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	}
 
 	// Не заставляем удалять плагин
-
-	// // Uninstall plugin
-	// _, _, err := run(ctx, r.client, fmt.Sprintf("plugin:uninstall %s", state.Name.ValueString()))
-	// if err != nil {
-	// 	resp.Diagnostics.AddError(
-	// 		"Unable to uninstall plugin",
-	// 		"Unable to uninstall plugin. "+err.Error(),
-	// 	)
-	// 	return
-	// }
-}
-
-func (r *pluginResource) isPluginInstalled(ctx context.Context, pluginNameToFind string, d *diag.Diagnostics) bool {
-	stdout, _, err := run(ctx, r.client, "plugin:list")
-	if err != nil {
-		d.AddError(
-			"Unable to read plugin",
-			"Unable to read plugin. "+err.Error(),
-		)
-		return false
-	}
-
-	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
-	found := false
-	for _, line := range lines {
-		parts := strings.Split(strings.TrimSpace(line), " ")
-		pluginName := strings.TrimSpace(parts[0])
-		if pluginNameToFind != pluginName {
-			continue
-		}
-		found = true
-		break
-	}
-	return found
 }

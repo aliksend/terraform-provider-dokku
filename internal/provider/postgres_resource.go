@@ -2,14 +2,13 @@ package provider
 
 import (
 	"context"
-	"fmt"
-	"strings"
+
+	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/melbahja/goph"
 )
 
 var (
@@ -23,7 +22,7 @@ func NewPostgresResource() resource.Resource {
 }
 
 type postgresResource struct {
-	client *goph.Client
+	client *dokkuclient.Client
 }
 
 type postgresResourceModel struct {
@@ -42,7 +41,7 @@ func (r *postgresResource) Configure(_ context.Context, req resource.ConfigureRe
 	}
 
 	//nolint:forcetypeassert
-	r.client = req.ProviderData.(*goph.Client)
+	r.client = req.ProviderData.(*dokkuclient.Client)
 }
 
 // Schema defines the schema for the resource.
@@ -67,17 +66,16 @@ func (r *postgresResource) Read(ctx context.Context, req resource.ReadRequest, r
 	}
 
 	// Check service existence
-	stdout, _, err := run(ctx, r.client, fmt.Sprintf("postgres:exists %s", state.ServiceName.ValueString()))
+	exists, err := r.client.PostgresServiceExists(ctx, state.ServiceName.ValueString())
 	if err != nil {
-		if strings.Contains(stdout, fmt.Sprintf("Postgres service %s does not exist", state.ServiceName.ValueString())) {
-			resp.Diagnostics.AddError("Unable to find postgres service", "Unable to find postgres service")
-			return
-		}
-
 		resp.Diagnostics.AddError(
 			"Unable to check postgres service existence",
 			"Unable to check postgres service existence. "+err.Error(),
 		)
+		return
+	}
+	if !exists {
+		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -100,24 +98,29 @@ func (r *postgresResource) Create(ctx context.Context, req resource.CreateReques
 	}
 
 	// Create service is not exists
-	stdout, _, err := run(ctx, r.client, fmt.Sprintf("postgres:exists %s", plan.ServiceName.ValueString()))
+	exists, err := r.client.PostgresServiceExists(ctx, plan.ServiceName.ValueString())
 	if err != nil {
-		if strings.Contains(stdout, fmt.Sprintf("Postgres service %s does not exist", plan.ServiceName.ValueString())) {
-			_, _, err := run(ctx, r.client, fmt.Sprintf("postgres:create %s", plan.ServiceName.ValueString()))
-			if err != nil {
-				resp.Diagnostics.AddError(
-					"Unable to create postgres service",
-					"Unable to create postgres service. "+err.Error(),
-				)
-				return
-			}
-		} else {
-			resp.Diagnostics.AddError(
-				"Unable to check postgres service existence",
-				"Unable to check postgres service existence. "+err.Error(),
-			)
-			return
-		}
+		resp.Diagnostics.AddError(
+			"Unable to check postgres service existence",
+			"Unable to check postgres service existence. "+err.Error(),
+		)
+		return
+	}
+	if exists {
+		resp.Diagnostics.AddError(
+			"Postgres service already exists",
+			"Postgres service already exists",
+		)
+		return
+	}
+
+	err = r.client.PostgresServiceCreate(ctx, plan.ServiceName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to create postgres service",
+			"Unable to create postgres service. "+err.Error(),
+		)
+		return
 	}
 
 	// Set state to fully populated data
@@ -149,6 +152,22 @@ func (r *postgresResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
+	exists, err := r.client.PostgresServiceExists(ctx, state.ServiceName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to check postgres service existence",
+			"Unable to check postgres service existence. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		resp.Diagnostics.AddError(
+			"Unable to find postgres service",
+			"Unable to find postgres service",
+		)
+		return
+	}
+
 	// Nothing to update
 
 	diags = resp.State.Set(ctx, plan)
@@ -168,8 +187,21 @@ func (r *postgresResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
+	// Check service existence
+	exists, err := r.client.PostgresServiceExists(ctx, state.ServiceName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to check postgres service existence",
+			"Unable to check postgres service existence. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		return
+	}
+
 	// Destroy instance
-	_, _, err := run(ctx, r.client, fmt.Sprintf("postgres:destroy %s --force", state.ServiceName.ValueString()))
+	err = r.client.PostgresServiceDestroy(ctx, state.ServiceName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to destroy service",

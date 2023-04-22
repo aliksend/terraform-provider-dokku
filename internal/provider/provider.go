@@ -7,9 +7,9 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
-	"sync"
+
+	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
 
 	"github.com/blang/semver"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -211,7 +211,8 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		return
 	}
 
-	stdout, status, _ := run(ctx, client, "version")
+	dokkuClient := dokkuclient.New(client)
+	stdout, status, _ := dokkuClient.Run(ctx, "version")
 
 	// Check for 127 status code... suggests that we're not authenticating
 	// with a dokku user (see https://github.com/aaronstillwell/terraform-provider-dokku/issues/1)
@@ -255,10 +256,10 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	tflog.Debug(ctx, "Connected!")
 
-	// Make the SSH client available during DataSource and Resource
+	// Make the dokku client available during DataSource and Resource
 	// type Configure methods.
-	resp.DataSourceData = client
-	resp.ResourceData = client
+	resp.DataSourceData = dokkuClient
+	resp.ResourceData = dokkuClient
 }
 
 func (p *dokkuProvider) Resources(ctx context.Context) []func() resource.Resource {
@@ -317,50 +318,4 @@ func verifyHost(host string, remote net.Addr, key ssh.PublicKey) error {
 
 	// Add the new host to known hosts file.
 	return goph.AddKnownHost(host, remote, key, "")
-}
-
-var mutex = &sync.Mutex{}
-
-func run(ctx context.Context, client *goph.Client, cmd string, sensitiveStrings ...string) (stdout string, status int, err error) {
-	// disabling concurrent calls
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	cmdSafe := cmd
-	for _, toReplace := range sensitiveStrings {
-		cmdSafe = strings.Replace(cmdSafe, toReplace, "*******", -1)
-	}
-
-	tflog.Error(ctx, "SSH cmd", map[string]any{"cmd": cmdSafe})
-
-	stdoutRaw, err := client.RunContext(ctx, "--quiet "+cmd)
-
-	stdout = string(stdoutRaw)
-	for _, toReplace := range sensitiveStrings {
-		stdout = strings.Replace(stdout, toReplace, "*******", -1)
-	}
-
-	if err != nil {
-		status = parseStatusCode(err.Error())
-		tflog.Debug(ctx, "SSH error", map[string]any{"status": status})
-		err = fmt.Errorf("Error [%d]: %s", status, stdout)
-	}
-	return
-}
-
-func parseStatusCode(str string) int {
-	re := regexp.MustCompile("^Process exited with status ([0-9]+)$")
-	found := re.FindStringSubmatch(str)
-
-	if found == nil {
-		return 0
-	}
-
-	i, err := strconv.Atoi(found[1])
-
-	if err != nil {
-		return 0
-	}
-
-	return i
 }

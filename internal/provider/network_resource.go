@@ -2,16 +2,15 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
+	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
+
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-	"github.com/melbahja/goph"
 )
 
 var (
@@ -25,7 +24,7 @@ func NewNetworkResource() resource.Resource {
 }
 
 type networkResource struct {
-	client *goph.Client
+	client *dokkuclient.Client
 }
 
 type networkResourceModel struct {
@@ -46,7 +45,7 @@ func (r *networkResource) Configure(_ context.Context, req resource.ConfigureReq
 	}
 
 	//nolint:forcetypeassert
-	r.client = req.ProviderData.(*goph.Client)
+	r.client = req.ProviderData.(*dokkuclient.Client)
 }
 
 // Schema defines the schema for the resource.
@@ -77,22 +76,21 @@ func (r *networkResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	// Check network existence
-	stdout, _, err := run(ctx, r.client, fmt.Sprintf("network:exists %s", state.Name.ValueString()))
+	exists, err := r.client.NetworkExists(ctx, state.Name.ValueString())
 	if err != nil {
-		if strings.Contains(stdout, "Network does not exist") {
-			resp.Diagnostics.AddError("Unable to find network", "Unable to find network")
-			return
-		}
-
 		resp.Diagnostics.AddError(
 			"Unable to check network existence",
 			"Unable to check network existence. "+err.Error(),
 		)
 		return
 	}
+	if !exists {
+		resp.State.RemoveResource(ctx)
+		return
+	}
 
 	// Check network attached to app
-	stdout, _, err = run(ctx, r.client, fmt.Sprintf("network:report %s --network-%s", state.AppName.ValueString(), state.Type.ValueString()))
+	networkName, err := r.client.NetworkGetNameForApp(ctx, state.AppName.ValueString(), state.Type.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to get network report",
@@ -100,9 +98,8 @@ func (r *networkResource) Read(ctx context.Context, req resource.ReadRequest, re
 		)
 		return
 	}
-	networkName := strings.TrimSuffix(stdout, "\n")
 	if networkName == "" {
-		resp.Diagnostics.AddError("No network set", "No network set")
+		resp.State.RemoveResource(ctx)
 		return
 	}
 	state.Name = basetypes.NewStringValue(networkName)
@@ -125,8 +122,31 @@ func (r *networkResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	r.ensureAndSetNetwork(ctx, plan, &resp.Diagnostics)
-	if resp.Diagnostics.HasError() {
+	// Check network attached to app
+	networkName, err := r.client.NetworkGetNameForApp(ctx, plan.AppName.ValueString(), plan.Type.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to get network report",
+			"Unable to get network report. "+err.Error(),
+		)
+		return
+	}
+	if networkName == plan.Name.ValueString() {
+		resp.Diagnostics.AddError("This network already attached to app", "This network already attached to app")
+		return
+	}
+	if networkName != "" {
+		resp.Diagnostics.AddError("Other network already attached to this app", "Other network already attached to this app")
+		return
+	}
+
+	// Set network
+	err = r.client.NetworkEnsureAndSetForApp(ctx, plan.AppName.ValueString(), plan.Type.ValueString(), plan.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to set network",
+			"Unable to set network. "+err.Error(),
+		)
 		return
 	}
 
@@ -159,8 +179,39 @@ func (r *networkResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
+	// Check network existence
+	exists, err := r.client.NetworkExists(ctx, state.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to check network existence",
+			"Unable to check network existence. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		resp.Diagnostics.AddError(
+			"Network not exists",
+			"Network not exists",
+		)
+		return
+	}
+
+	// Check network attached to app
+	networkName, err := r.client.NetworkGetNameForApp(ctx, state.AppName.ValueString(), state.Type.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to get network report",
+			"Unable to get network report. "+err.Error(),
+		)
+		return
+	}
+	if networkName != state.Name.ValueString() {
+		resp.Diagnostics.AddError("Network not attached to app", "Network not attached to app")
+		return
+	}
+
 	// Unset network
-	_, _, err := run(ctx, r.client, fmt.Sprintf("network:set %s %s", state.AppName.ValueString(), state.Type.ValueString()))
+	err = r.client.NetworkUnsetForApp(ctx, state.AppName.ValueString(), state.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to unset network",
@@ -169,8 +220,13 @@ func (r *networkResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	r.ensureAndSetNetwork(ctx, plan, &resp.Diagnostics)
-	if resp.Diagnostics.HasError() {
+	// Set network
+	err = r.client.NetworkEnsureAndSetForApp(ctx, plan.AppName.ValueString(), plan.Type.ValueString(), plan.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to set network",
+			"Unable to set network. "+err.Error(),
+		)
 		return
 	}
 
@@ -191,45 +247,25 @@ func (r *networkResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 
+	// Check network existence
+	exists, err := r.client.NetworkExists(ctx, state.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to check network existence",
+			"Unable to check network existence. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		return
+	}
+
 	// Unset network
-	_, _, err := run(ctx, r.client, fmt.Sprintf("network:set %s %s", state.AppName.ValueString(), state.Type.ValueString()))
+	err = r.client.NetworkUnsetForApp(ctx, state.AppName.ValueString(), state.Type.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to unset network",
 			"Unable to unset network. "+err.Error(),
-		)
-		return
-	}
-}
-
-func (r *networkResource) ensureAndSetNetwork(ctx context.Context, plan networkResourceModel, d *diag.Diagnostics) {
-	// Ensure network
-	stdout, _, err := run(ctx, r.client, fmt.Sprintf("network:exists %s", plan.Name.ValueString()))
-	if err != nil {
-		if strings.Contains(stdout, "Network does not exist") {
-			_, _, err := run(ctx, r.client, fmt.Sprintf("network:create %s", plan.Name.ValueString()))
-			if err != nil {
-				d.AddError(
-					"Unable to create network",
-					"Unable to create network. "+err.Error(),
-				)
-				return
-			}
-		} else {
-			d.AddError(
-				"Unable to check network existence",
-				"Unable to check network existence. "+err.Error(),
-			)
-			return
-		}
-	}
-
-	// Set network for app
-	_, _, err = run(ctx, r.client, fmt.Sprintf("network:set %s %s %s", plan.AppName.ValueString(), plan.Type.ValueString(), plan.Name.ValueString()))
-	if err != nil {
-		d.AddError(
-			"Unable to set network",
-			"Unable to set network. "+err.Error(),
 		)
 		return
 	}

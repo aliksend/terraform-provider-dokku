@@ -2,13 +2,13 @@ package provider
 
 import (
 	"context"
-	"fmt"
+
+	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/melbahja/goph"
 )
 
 var (
@@ -22,7 +22,7 @@ func NewAppResource() resource.Resource {
 }
 
 type appResource struct {
-	client *goph.Client
+	client *dokkuclient.Client
 }
 
 type appResourceModel struct {
@@ -41,7 +41,7 @@ func (r *appResource) Configure(_ context.Context, req resource.ConfigureRequest
 	}
 
 	//nolint:forcetypeassert
-	r.client = req.ProviderData.(*goph.Client)
+	r.client = req.ProviderData.(*dokkuclient.Client)
 }
 
 // Schema defines the schema for the resource.
@@ -65,8 +65,22 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 		return
 	}
 
+	// Check app existence
+	exists, err := r.client.AppExists(ctx, plan.AppName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read app",
+			"Unable to read app. "+err.Error(),
+		)
+		return
+	}
+	if exists {
+		resp.Diagnostics.AddError("App already exists", "App with specified name already exists")
+		return
+	}
+
 	// Create new app
-	_, _, err := run(ctx, r.client, fmt.Sprintf("apps:create %s", plan.AppName.ValueString()))
+	err = r.client.AppCreate(ctx, plan.AppName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to create app",
@@ -94,12 +108,16 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 	}
 
 	// Check app existence
-	_, _, err := run(ctx, r.client, fmt.Sprintf("apps:exists %s", state.AppName.ValueString()))
+	exists, err := r.client.AppExists(ctx, state.AppName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to read app",
 			"Unable to read app. "+err.Error(),
 		)
+		return
+	}
+	if !exists {
+		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -132,6 +150,20 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 		return
 	}
 
+	// Check app existence
+	exists, err := r.client.AppExists(ctx, state.AppName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read app",
+			"Unable to read app. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		resp.Diagnostics.AddError("App not found", "App with specified name not found")
+		return
+	}
+
 	// Nothing to update
 
 	diags = resp.State.Set(ctx, plan)
@@ -151,8 +183,20 @@ func (r *appResource) Delete(ctx context.Context, req resource.DeleteRequest, re
 		return
 	}
 
+	exists, err := r.client.AppExists(ctx, state.AppName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read app",
+			"Unable to read app. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		return
+	}
+
 	// Delete existing app
-	_, _, err := run(ctx, r.client, fmt.Sprintf("apps:destroy %s --force", state.AppName.ValueString()))
+	err = r.client.AppDestroy(ctx, state.AppName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to read app",

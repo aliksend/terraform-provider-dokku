@@ -2,14 +2,13 @@ package provider
 
 import (
 	"context"
-	"fmt"
-	"strings"
+
+	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/melbahja/goph"
 )
 
 var (
@@ -23,7 +22,7 @@ func NewLetsencryptResource() resource.Resource {
 }
 
 type letsencryptResource struct {
-	client *goph.Client
+	client *dokkuclient.Client
 }
 
 type letsencryptResourceModel struct {
@@ -42,7 +41,7 @@ func (r *letsencryptResource) Configure(_ context.Context, req resource.Configur
 	}
 
 	//nolint:forcetypeassert
-	r.client = req.ProviderData.(*goph.Client)
+	r.client = req.ProviderData.(*dokkuclient.Client)
 }
 
 // Schema defines the schema for the resource.
@@ -67,7 +66,7 @@ func (r *letsencryptResource) Read(ctx context.Context, req resource.ReadRequest
 	}
 
 	// Read letsencrypt status
-	stdout, _, err := run(ctx, r.client, "letsencrypt:list")
+	exists, err := r.client.LetsencryptIsEnabled(ctx, state.AppName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to read letsencrypt status",
@@ -75,22 +74,8 @@ func (r *letsencryptResource) Read(ctx context.Context, req resource.ReadRequest
 		)
 		return
 	}
-
-	found := false
-	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
-	for _, line := range lines {
-		parts := strings.SplitN(line, " ", 2)
-		appName := strings.TrimSpace(parts[0])
-		if appName == state.AppName.ValueString() {
-			found = true
-			break
-		}
-	}
-	if !found {
-		resp.Diagnostics.AddError(
-			"Unable to find letsencrypt for app",
-			"Unable to find letsencrypt for app",
-		)
+	if !exists {
+		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -112,8 +97,25 @@ func (r *letsencryptResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
+	// Read letsencrypt status
+	exists, err := r.client.LetsencryptIsEnabled(ctx, plan.AppName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read letsencrypt status",
+			"Unable to read letsencrypt status. "+err.Error(),
+		)
+		return
+	}
+	if exists {
+		resp.Diagnostics.AddError(
+			"Letsencrypt already enabled for app",
+			"Letsencrypt already enabled for app",
+		)
+		return
+	}
+
 	// Enable letsencrypt
-	_, _, err := run(ctx, r.client, fmt.Sprintf("letsencrypt:enable %s", plan.AppName.ValueString()))
+	err = r.client.LetsencryptEnable(ctx, plan.AppName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to enable letsencrypt",
@@ -123,7 +125,7 @@ func (r *letsencryptResource) Create(ctx context.Context, req resource.CreateReq
 	}
 
 	// Add cronjob for auto-renew
-	_, _, err = run(ctx, r.client, "letsencrypt:cron-job --add")
+	err = r.client.LetsencryptAddCronJob(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to add letsencrypt cronjob",
@@ -161,6 +163,22 @@ func (r *letsencryptResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
+	exists, err := r.client.LetsencryptIsEnabled(ctx, state.AppName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read letsencrypt status",
+			"Unable to read letsencrypt status. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		resp.Diagnostics.AddError(
+			"Letsencrypt not enabled for app",
+			"Letsencrypt not enabled for app",
+		)
+		return
+	}
+
 	// Nothing to update
 
 	diags = resp.State.Set(ctx, plan)
@@ -180,8 +198,21 @@ func (r *letsencryptResource) Delete(ctx context.Context, req resource.DeleteReq
 		return
 	}
 
+	// Read letsencrypt status
+	exists, err := r.client.LetsencryptIsEnabled(ctx, state.AppName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read letsencrypt status",
+			"Unable to read letsencrypt status. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		return
+	}
+
 	// Disable letsencrypt
-	_, _, err := run(ctx, r.client, fmt.Sprintf("letsencrypt:disable %s", state.AppName.ValueString()))
+	err = r.client.LetsencryptDisable(ctx, state.AppName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to disable letsencrypt",

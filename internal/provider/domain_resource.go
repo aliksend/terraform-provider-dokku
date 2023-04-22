@@ -2,14 +2,14 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"strings"
+
+	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/melbahja/goph"
 )
 
 var (
@@ -23,7 +23,7 @@ func NewDomainResource() resource.Resource {
 }
 
 type domainResource struct {
-	client *goph.Client
+	client *dokkuclient.Client
 }
 
 type domainResourceModel struct {
@@ -43,7 +43,7 @@ func (r *domainResource) Configure(_ context.Context, req resource.ConfigureRequ
 	}
 
 	//nolint:forcetypeassert
-	r.client = req.ProviderData.(*goph.Client)
+	r.client = req.ProviderData.(*dokkuclient.Client)
 }
 
 // Schema defines the schema for the resource.
@@ -71,7 +71,7 @@ func (r *domainResource) Read(ctx context.Context, req resource.ReadRequest, res
 	}
 
 	// Read domains
-	stdout, _, err := run(ctx, r.client, fmt.Sprintf("domains:report %s", state.AppName.ValueString()))
+	exists, err := r.client.DomainExists(ctx, state.AppName.ValueString(), state.Domain.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to read domains",
@@ -79,28 +79,8 @@ func (r *domainResource) Read(ctx context.Context, req resource.ReadRequest, res
 		)
 		return
 	}
-
-	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
-	found := false
-	for _, line := range lines {
-		parts := strings.Split(line, ":")
-		key := strings.TrimSpace(parts[0])
-		if key == "Domains app vhosts" {
-			domainList := strings.TrimSpace(parts[1])
-			if domainList != "" {
-				for _, domain := range strings.Split(domainList, " ") {
-					if domain == state.Domain.ValueString() {
-						found = true
-						break
-					}
-				}
-			}
-			break
-		}
-	}
-
-	if !found {
-		resp.Diagnostics.AddError("Domain not found", "Domain not found")
+	if !exists {
+		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -122,8 +102,22 @@ func (r *domainResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
+	// Read domain
+	exists, err := r.client.DomainExists(ctx, plan.AppName.ValueString(), plan.Domain.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read domains",
+			"Unable to read domains. "+err.Error(),
+		)
+		return
+	}
+	if exists {
+		resp.Diagnostics.AddError("This domain already set for app", "This domain already set for app")
+		return
+	}
+
 	// Add domain
-	_, _, err := run(ctx, r.client, fmt.Sprintf("domains:add %s %s", plan.AppName.ValueString(), plan.Domain.ValueString()))
+	err = r.client.DomainAdd(ctx, plan.AppName.ValueString(), plan.Domain.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to create domain",
@@ -156,23 +150,37 @@ func (r *domainResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
+	// Read domain
+	exists, err := r.client.DomainExists(ctx, state.AppName.ValueString(), state.Domain.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read domains",
+			"Unable to read domains. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		resp.Diagnostics.AddError("Domain not found for app", "Domain not found for app")
+		return
+	}
+
 	if plan.AppName.ValueString() != state.AppName.ValueString() {
 		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "Unable to change app name", "Unable to change app name")
 		return
 	}
 
 	if plan.Domain.ValueString() != state.Domain.ValueString() {
-		_, _, err := run(ctx, r.client, fmt.Sprintf("domains:remove %s %s", state.AppName.ValueString(), state.Domain.ValueString()))
+		err := r.client.DomainRemove(ctx, state.AppName.ValueString(), state.Domain.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError(
-				"Unable to create domains",
-				"Unable to create domains. "+err.Error(),
+				"Unable to remove domain",
+				"Unable to remove domain. "+err.Error(),
 			)
 			return
 		}
 
 		// Add domain
-		_, _, err = run(ctx, r.client, fmt.Sprintf("domains:add %s %s", plan.AppName.ValueString(), plan.Domain.ValueString()))
+		err = r.client.DomainAdd(ctx, plan.AppName.ValueString(), plan.Domain.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Unable to create domain",
@@ -199,8 +207,21 @@ func (r *domainResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
+	// Read domains
+	exists, err := r.client.DomainExists(ctx, state.AppName.ValueString(), state.Domain.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read domains",
+			"Unable to read domains. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		return
+	}
+
 	// Clear domains
-	_, _, err := run(ctx, r.client, fmt.Sprintf("domains:remove %s %s", state.AppName.ValueString(), state.Domain.ValueString()))
+	err = r.client.DomainRemove(ctx, state.AppName.ValueString(), state.Domain.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to delete domain",

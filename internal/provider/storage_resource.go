@@ -2,15 +2,15 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"strings"
+
+	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-	"github.com/melbahja/goph"
 )
 
 var (
@@ -19,14 +19,12 @@ var (
 	_ resource.ResourceWithImportState = &storageResource{}
 )
 
-const hostStoragePrefix = "/var/lib/dokku/data/storage/"
-
 func NewStorageResource() resource.Resource {
 	return &storageResource{}
 }
 
 type storageResource struct {
-	client *goph.Client
+	client *dokkuclient.Client
 }
 
 type storageResourceModel struct {
@@ -47,7 +45,7 @@ func (r *storageResource) Configure(_ context.Context, req resource.ConfigureReq
 	}
 
 	//nolint:forcetypeassert
-	r.client = req.ProviderData.(*goph.Client)
+	r.client = req.ProviderData.(*dokkuclient.Client)
 }
 
 // Schema defines the schema for the resource.
@@ -78,7 +76,7 @@ func (r *storageResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	// Read storage
-	stdout, _, err := run(ctx, r.client, fmt.Sprintf("storage:list %s", state.AppName.ValueString()))
+	exists, mountPath, err := r.client.StorageExists(ctx, state.AppName.ValueString(), state.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to read storage",
@@ -86,29 +84,11 @@ func (r *storageResource) Read(ctx context.Context, req resource.ReadRequest, re
 		)
 		return
 	}
-
-	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
-	found := false
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		parts := strings.Split(line, ":")
-		hostpath := strings.TrimSpace(parts[0])
-		if hostpath[:len(hostStoragePrefix)] != hostStoragePrefix {
-			continue
-		}
-		if state.Name.ValueString() != hostpath[len(hostStoragePrefix):] {
-			continue
-		}
-		state.MountPath = basetypes.NewStringValue(parts[1])
-		found = true
-		break
-	}
-	if !found {
-		resp.Diagnostics.AddError("Unable to find storage", "Unable to find storage with name "+state.Name.ValueString())
+	if !exists {
+		resp.State.RemoveResource(ctx)
 		return
 	}
+	state.MountPath = basetypes.NewStringValue(mountPath)
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, &state)
@@ -128,8 +108,21 @@ func (r *storageResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	exists, _, err := r.client.StorageExists(ctx, plan.AppName.ValueString(), plan.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read storage",
+			"Unable to read storage. "+err.Error(),
+		)
+		return
+	}
+	if exists {
+		resp.Diagnostics.AddError("Storage already mounted", "Storage already mounted")
+		return
+	}
+
 	// Ensure storage
-	_, _, err := run(ctx, r.client, fmt.Sprintf("storage:ensure-directory %s", plan.Name.ValueString()))
+	err = r.client.StorageEnsure(ctx, plan.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to ensure storage",
@@ -139,7 +132,7 @@ func (r *storageResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	// Mount storage
-	_, _, err = run(ctx, r.client, fmt.Sprintf("storage:mount %s %s:%s", plan.AppName.ValueString(), hostStoragePrefix+plan.Name.ValueString(), plan.MountPath.ValueString()))
+	err = r.client.StorageMount(ctx, plan.AppName.ValueString(), plan.Name.ValueString(), plan.MountPath.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to mount storage",
@@ -181,8 +174,21 @@ func (r *storageResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
+	exists, _, err := r.client.StorageExists(ctx, state.AppName.ValueString(), state.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read storage",
+			"Unable to read storage. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		resp.Diagnostics.AddError("Storage not mounted", "Storage not mounted")
+		return
+	}
+
 	// Unmount storage
-	_, _, err := run(ctx, r.client, fmt.Sprintf("storage:unmount %s %s:%s", state.AppName.ValueString(), hostStoragePrefix+state.Name.ValueString(), state.MountPath.ValueString()))
+	err = r.client.StorageUnmount(ctx, state.AppName.ValueString(), state.Name.ValueString(), state.MountPath.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to unmount storage",
@@ -192,7 +198,7 @@ func (r *storageResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	// Ensure storage
-	_, _, err = run(ctx, r.client, fmt.Sprintf("storage:ensure-directory %s", plan.Name.ValueString()))
+	err = r.client.StorageEnsure(ctx, plan.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to ensure storage",
@@ -202,11 +208,11 @@ func (r *storageResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	// Mount storage
-	_, _, err = run(ctx, r.client, fmt.Sprintf("storage:mount %s %s:%s", plan.AppName.ValueString(), hostStoragePrefix+plan.Name.ValueString(), plan.MountPath.ValueString()))
+	err = r.client.StorageMount(ctx, plan.AppName.ValueString(), plan.Name.ValueString(), plan.MountPath.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Unable to create storage",
-			"Unable to create storage. "+err.Error(),
+			"Unable to mount storage",
+			"Unable to mount storage. "+err.Error(),
 		)
 		return
 	}
@@ -228,8 +234,20 @@ func (r *storageResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 
+	exists, _, err := r.client.StorageExists(ctx, state.AppName.ValueString(), state.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read storage",
+			"Unable to read storage. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		return
+	}
+
 	// Umount storage
-	_, _, err := run(ctx, r.client, fmt.Sprintf("storage:unmount %s %s:%s", state.AppName.ValueString(), hostStoragePrefix+state.Name.ValueString(), state.MountPath.ValueString()))
+	err = r.client.StorageUnmount(ctx, state.AppName.ValueString(), state.Name.ValueString(), state.MountPath.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to unmount storage",

@@ -2,16 +2,14 @@ package provider
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
-	"github.com/hashicorp/terraform-plugin-framework/diag"
+	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
+
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-	"github.com/melbahja/goph"
 )
 
 var (
@@ -25,7 +23,7 @@ func NewChecksResource() resource.Resource {
 }
 
 type checksResource struct {
-	client *goph.Client
+	client *dokkuclient.Client
 }
 
 type checksResourceModel struct {
@@ -45,7 +43,7 @@ func (r *checksResource) Configure(_ context.Context, req resource.ConfigureRequ
 	}
 
 	//nolint:forcetypeassert
-	r.client = req.ProviderData.(*goph.Client)
+	r.client = req.ProviderData.(*dokkuclient.Client)
 }
 
 // Schema defines the schema for the resource.
@@ -73,34 +71,13 @@ func (r *checksResource) Read(ctx context.Context, req resource.ReadRequest, res
 	}
 
 	// Read checks
-	stdout, _, err := run(ctx, r.client, fmt.Sprintf("checks:report %s", state.AppName.ValueString()))
+	status, err := r.client.ChecksGet(ctx, state.AppName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Unable to read checks",
-			"Unable to read checks. "+err.Error(),
+			"Unable to get checks",
+			"Unable to get checks. "+err.Error(),
 		)
 		return
-	}
-
-	status := "enabled"
-	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
-	for _, line := range lines {
-		parts := strings.Split(line, ":")
-		title := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		switch title {
-		case "Checks disabled list":
-			if value == "_all_" {
-				status = "disabled"
-				break
-			}
-		case "Checks skipped list":
-			if value == "_all_" {
-				status = "skipped"
-				break
-			}
-		}
 	}
 	state.Status = basetypes.NewStringValue(status)
 
@@ -123,8 +100,12 @@ func (r *checksResource) Create(ctx context.Context, req resource.CreateRequest,
 	}
 
 	// Set checks
-	r.setChecks(ctx, plan.AppName.ValueString(), plan.Status.ValueString(), &resp.Diagnostics)
-	if resp.Diagnostics.HasError() {
+	err := r.client.ChecksSet(ctx, plan.AppName.ValueString(), plan.Status.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to set checks",
+			"Unable to set checks. "+err.Error(),
+		)
 		return
 	}
 
@@ -157,9 +138,27 @@ func (r *checksResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
+	// Read checks
+	status, err := r.client.ChecksGet(ctx, state.AppName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to get checks",
+			"Unable to get checks. "+err.Error(),
+		)
+		return
+	}
+	if status != state.Status.ValueString() {
+		resp.Diagnostics.AddError("Checks has invalid status", "Checks has invalid status")
+		return
+	}
+
 	// Set checks
-	r.setChecks(ctx, state.AppName.ValueString(), plan.Status.ValueString(), &resp.Diagnostics)
-	if resp.Diagnostics.HasError() {
+	err = r.client.ChecksSet(ctx, state.AppName.ValueString(), plan.Status.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to set checks",
+			"Unable to set checks. "+err.Error(),
+		)
 		return
 	}
 
@@ -181,31 +180,11 @@ func (r *checksResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	}
 
 	// Set checks
-	r.setChecks(ctx, state.AppName.ValueString(), "enabled", &resp.Diagnostics)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-}
-
-func (r *checksResource) setChecks(ctx context.Context, appName string, status string, d *diag.Diagnostics) {
-	var action string
-	switch status {
-	case "enabled":
-		action = "enable"
-	case "disabled":
-		action = "disable"
-	case "skipped":
-		action = "skip"
-	default:
-		d.AddAttributeError(path.Root("status"), "Invalid status value", "Invalid status value. Valid values are: enabled, disabled, skipped")
-		return
-	}
-
-	_, _, err := run(ctx, r.client, fmt.Sprintf("checks:%s %s", action, appName))
+	err := r.client.ChecksSet(ctx, state.AppName.ValueString(), "enabled")
 	if err != nil {
-		d.AddError(
-			"Unable to read checks",
-			"Unable to read checks. "+err.Error(),
+		resp.Diagnostics.AddError(
+			"Unable to set checks",
+			"Unable to set checks. "+err.Error(),
 		)
 		return
 	}

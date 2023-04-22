@@ -2,14 +2,13 @@ package provider
 
 import (
 	"context"
-	"fmt"
-	"strings"
+
+	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/melbahja/goph"
 )
 
 var (
@@ -23,7 +22,7 @@ func NewGlobalDomainResource() resource.Resource {
 }
 
 type globalDomainResource struct {
-	client *goph.Client
+	client *dokkuclient.Client
 }
 
 type globalDomainResourceModel struct {
@@ -42,7 +41,7 @@ func (r *globalDomainResource) Configure(_ context.Context, req resource.Configu
 	}
 
 	//nolint:forcetypeassert
-	r.client = req.ProviderData.(*goph.Client)
+	r.client = req.ProviderData.(*dokkuclient.Client)
 }
 
 // Schema defines the schema for the resource.
@@ -67,7 +66,7 @@ func (r *globalDomainResource) Read(ctx context.Context, req resource.ReadReques
 	}
 
 	// Read domains
-	stdout, _, err := run(ctx, r.client, "domains:report --global")
+	exists, err := r.client.GlobalDomainExists(ctx, state.Domain.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to read domains",
@@ -75,28 +74,8 @@ func (r *globalDomainResource) Read(ctx context.Context, req resource.ReadReques
 		)
 		return
 	}
-
-	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
-	found := false
-	for _, line := range lines {
-		parts := strings.Split(line, ":")
-		key := strings.TrimSpace(parts[0])
-		if key == "Domains global vhosts" {
-			domainList := strings.TrimSpace(parts[1])
-			if domainList != "" {
-				for _, domain := range strings.Split(domainList, " ") {
-					if domain == state.Domain.ValueString() {
-						found = true
-						break
-					}
-				}
-			}
-			break
-		}
-	}
-
-	if !found {
-		resp.Diagnostics.AddError("Domain not found", "Domain not found")
+	if !exists {
+		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -118,8 +97,22 @@ func (r *globalDomainResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
+	// Read domains
+	exists, err := r.client.GlobalDomainExists(ctx, plan.Domain.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read domains",
+			"Unable to read domains. "+err.Error(),
+		)
+		return
+	}
+	if exists {
+		resp.Diagnostics.AddError("This global domain is already set", "This global domain is already set")
+		return
+	}
+
 	// Add domain
-	_, _, err := run(ctx, r.client, fmt.Sprintf("domains:add-global %s", plan.Domain.ValueString()))
+	err = r.client.GlobalDomainAdd(ctx, plan.Domain.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to create domain",
@@ -152,8 +145,22 @@ func (r *globalDomainResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
+	// Read domains
+	exists, err := r.client.GlobalDomainExists(ctx, state.Domain.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read domains",
+			"Unable to read domains. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		resp.Diagnostics.AddError("Domain not exists", "Domain not exists")
+		return
+	}
+
 	if plan.Domain.ValueString() != state.Domain.ValueString() {
-		_, _, err := run(ctx, r.client, fmt.Sprintf("domains:remove-global %s", state.Domain.ValueString()))
+		err := r.client.GlobalDomainRemove(ctx, state.Domain.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Unable to create domains",
@@ -163,7 +170,7 @@ func (r *globalDomainResource) Update(ctx context.Context, req resource.UpdateRe
 		}
 
 		// Add domain
-		_, _, err = run(ctx, r.client, fmt.Sprintf("domains:add-global %s", plan.Domain.ValueString()))
+		err = r.client.GlobalDomainAdd(ctx, plan.Domain.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError(
 				"Unable to create domain",
@@ -190,8 +197,21 @@ func (r *globalDomainResource) Delete(ctx context.Context, req resource.DeleteRe
 		return
 	}
 
+	// Read domains
+	exists, err := r.client.GlobalDomainExists(ctx, state.Domain.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to read domains",
+			"Unable to read domains. "+err.Error(),
+		)
+		return
+	}
+	if !exists {
+		return
+	}
+
 	// Clear domains
-	_, _, err := run(ctx, r.client, fmt.Sprintf("domains:remove-global %s", state.Domain.ValueString()))
+	err = r.client.GlobalDomainRemove(ctx, state.Domain.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to delete domain",
