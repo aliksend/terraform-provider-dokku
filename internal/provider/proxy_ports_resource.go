@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
@@ -111,10 +112,7 @@ func (r *proxyPortResource) Read(ctx context.Context, req resource.ReadRequest, 
 	// Read proxy ports
 	exists, scheme, containerPort, err := r.client.ProxyPortExists(ctx, state.AppName.ValueString(), state.HostPort.ValueInt64())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read proxy ports",
-			"Unable to read proxy ports. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check proxy port existence", "Unable to check proxy port existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -146,24 +144,18 @@ func (r *proxyPortResource) Create(ctx context.Context, req resource.CreateReque
 	// Read proxy ports
 	exists, _, _, err := r.client.ProxyPortExists(ctx, plan.AppName.ValueString(), plan.HostPort.ValueInt64())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read proxy ports",
-			"Unable to read proxy ports. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check proxy port existence", "Unable to check proxy port existence. "+err.Error())
 		return
 	}
 	if exists {
-		resp.Diagnostics.AddError("Port already assigned for this app", "Port already assigned for this app")
+		resp.Diagnostics.AddAttributeError(path.Root("host_port"), "Port already assigned for this app", "Port already assigned for this app")
 		return
 	}
 
 	// Set proxy port
 	err = r.client.ProxyPortAdd(ctx, plan.AppName.ValueString(), plan.Scheme.ValueString(), plan.HostPort.ValueInt64(), plan.ContainerPort.ValueInt64())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to add proxy port",
-			"Unable to add proxy port. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to add proxy port", "Unable to add proxy port. "+err.Error())
 		return
 	}
 
@@ -192,10 +184,7 @@ func (r *proxyPortResource) Delete(ctx context.Context, req resource.DeleteReque
 	// Read proxy ports
 	exists, _, _, err := r.client.ProxyPortExists(ctx, state.AppName.ValueString(), state.HostPort.ValueInt64())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read proxy ports",
-			"Unable to read proxy ports. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check proxy port existence", "Unable to check proxy port existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -205,10 +194,7 @@ func (r *proxyPortResource) Delete(ctx context.Context, req resource.DeleteReque
 	// Unset proxy port
 	err = r.client.ProxyPortRemove(ctx, state.AppName.ValueString(), state.HostPort.ValueInt64())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to remove proxy port",
-			"Unable to remove proxy port. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to remove proxy port", "Unable to remove proxy port. "+err.Error())
 		return
 	}
 }

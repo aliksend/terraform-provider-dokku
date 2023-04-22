@@ -88,10 +88,7 @@ func (r *pluginResource) Read(ctx context.Context, req resource.ReadRequest, res
 	// Read plugin
 	found, err := r.client.PluginIsInstalled(ctx, state.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read plugin",
-			"Unable to read plugin. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to read plugin", "Unable to read plugin. "+err.Error())
 		return
 	}
 	if !found {
@@ -121,10 +118,7 @@ func (r *pluginResource) Create(ctx context.Context, req resource.CreateRequest,
 	// Поэтому просто проверяем что плагин установлен и, если это не так, то выкидываем ошибку
 	found, err := r.client.PluginIsInstalled(ctx, plan.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read plugin",
-			"Unable to read plugin. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to read plugin", "Unable to read plugin. "+err.Error())
 	}
 	if !found {
 		resp.Diagnostics.AddError("Plugin not installed", fmt.Sprintf("Plugin not installed. Run `sudo plugin:install %s %s` manually.", plan.URL.ValueString(), plan.Name.ValueString()))

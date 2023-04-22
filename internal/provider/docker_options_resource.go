@@ -100,10 +100,7 @@ func (r *dockerOptionResource) Read(ctx context.Context, req resource.ReadReques
 	// Read docker option
 	exists, err := r.client.DockerOptionExists(ctx, state.AppName.ValueString(), state.Phase.ValueString(), state.Value.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read docker options",
-			"Unable to read docker options. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check docker options existence", "Unable to check docker options existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -131,10 +128,7 @@ func (r *dockerOptionResource) Create(ctx context.Context, req resource.CreateRe
 
 	exists, err := r.client.DockerOptionExists(ctx, plan.AppName.ValueString(), plan.Phase.ValueString(), plan.Value.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read docker-option",
-			"Unable to read docker-option. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check docker options existence", "Unable to check docker options existence. "+err.Error())
 		return
 	}
 	if exists {
@@ -145,10 +139,7 @@ func (r *dockerOptionResource) Create(ctx context.Context, req resource.CreateRe
 	// Add docker-option
 	err = r.client.DockerOptionAdd(ctx, plan.AppName.ValueString(), plan.Phase.ValueString(), plan.Value.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to add docker-option",
-			"Unable to add docker-option. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to add docker-option", "Unable to add docker-option. "+err.Error())
 		return
 	}
 
@@ -177,10 +168,7 @@ func (r *dockerOptionResource) Delete(ctx context.Context, req resource.DeleteRe
 
 	exists, err := r.client.DockerOptionExists(ctx, state.AppName.ValueString(), state.Phase.ValueString(), state.Value.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read docker options",
-			"Unable to read docker options. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check docker options existence", "Unable to check docker options existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -190,10 +178,7 @@ func (r *dockerOptionResource) Delete(ctx context.Context, req resource.DeleteRe
 	// Remove docker-option
 	err = r.client.DockerOptionRemove(ctx, state.AppName.ValueString(), state.Phase.ValueString(), state.Value.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to remove docker-option",
-			"Unable to remove docker-option. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to remove docker-option", "Unable to remove docker-option. "+err.Error())
 		return
 	}
 }

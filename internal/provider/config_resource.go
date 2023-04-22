@@ -98,10 +98,7 @@ func (r *configResource) Read(ctx context.Context, req resource.ReadRequest, res
 	// Read config value
 	value, err := r.client.ConfigGet(ctx, state.AppName.ValueString(), state.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read config",
-			"Unable to read config. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to read config", "Unable to read config. "+err.Error())
 		return
 	}
 	if value == "" {
@@ -131,24 +128,18 @@ func (r *configResource) Create(ctx context.Context, req resource.CreateRequest,
 	// Read config value
 	value, err := r.client.ConfigGet(ctx, plan.AppName.ValueString(), plan.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read config",
-			"Unable to read config. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to read config", "Unable to read config. "+err.Error())
 		return
 	}
 	if value != "" {
-		resp.Diagnostics.AddError("Config with this name already exists", "Config with this name already exists")
+		resp.Diagnostics.AddAttributeError(path.Root("name"), "Config with this name already exists", "Config with this name already exists")
 		return
 	}
 
 	// Set config
 	err = r.client.ConfigSet(ctx, plan.AppName.ValueString(), plan.Name.ValueString(), plan.Value.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to set config value",
-			"Unable to set config value. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to set config value", "Unable to set config value. "+err.Error())
 		return
 	}
 
@@ -188,10 +179,7 @@ func (r *configResource) Update(ctx context.Context, req resource.UpdateRequest,
 	// Read config value
 	value, err := r.client.ConfigGet(ctx, state.AppName.ValueString(), state.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read config",
-			"Unable to read config. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to read config", "Unable to read config. "+err.Error())
 		return
 	}
 	if value == "" {
@@ -202,10 +190,7 @@ func (r *configResource) Update(ctx context.Context, req resource.UpdateRequest,
 	// Set config value
 	err = r.client.ConfigSet(ctx, plan.AppName.ValueString(), plan.Name.ValueString(), plan.Value.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to set config value",
-			"Unable to set config value. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to set config value", "Unable to set config value. "+err.Error())
 		return
 	}
 
@@ -229,10 +214,7 @@ func (r *configResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	// Read config value
 	value, err := r.client.ConfigGet(ctx, state.AppName.ValueString(), state.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read config",
-			"Unable to read config. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to read config", "Unable to read config. "+err.Error())
 		return
 	}
 	if value == "" {
@@ -242,10 +224,7 @@ func (r *configResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	// Clear config
 	err = r.client.ConfigUnset(ctx, state.AppName.ValueString(), state.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to unset config value",
-			"Unable to unset config value. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to unset config value", "Unable to unset config value. "+err.Error())
 		return
 	}
 }

@@ -90,10 +90,7 @@ func (r *domainResource) Read(ctx context.Context, req resource.ReadRequest, res
 	// Read domains
 	exists, err := r.client.DomainExists(ctx, state.AppName.ValueString(), state.Domain.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read domains",
-			"Unable to read domains. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check domain existence", "Unable to check domain existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -122,24 +119,18 @@ func (r *domainResource) Create(ctx context.Context, req resource.CreateRequest,
 	// Read domain
 	exists, err := r.client.DomainExists(ctx, plan.AppName.ValueString(), plan.Domain.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read domains",
-			"Unable to read domains. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check domain existence", "Unable to check domain existence. "+err.Error())
 		return
 	}
 	if exists {
-		resp.Diagnostics.AddError("This domain already set for app", "This domain already set for app")
+		resp.Diagnostics.AddAttributeError(path.Root("domain"), "This domain already set for app", "This domain already set for app")
 		return
 	}
 
 	// Add domain
 	err = r.client.DomainAdd(ctx, plan.AppName.ValueString(), plan.Domain.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to create domain",
-			"Unable to create domain. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to add domain", "Unable to add domain. "+err.Error())
 		return
 	}
 
@@ -169,10 +160,7 @@ func (r *domainResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	// Read domains
 	exists, err := r.client.DomainExists(ctx, state.AppName.ValueString(), state.Domain.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read domains",
-			"Unable to read domains. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check domain existence", "Unable to check domain existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -182,10 +170,7 @@ func (r *domainResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	// Clear domains
 	err = r.client.DomainRemove(ctx, state.AppName.ValueString(), state.Domain.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to delete domain",
-			"Unable to delete domain. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to remove domain", "Unable to remove domain. "+err.Error())
 		return
 	}
 }

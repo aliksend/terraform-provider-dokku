@@ -101,10 +101,7 @@ func (r *networkResource) Read(ctx context.Context, req resource.ReadRequest, re
 	// Check network existence
 	exists, err := r.client.NetworkExists(ctx, state.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to check network existence",
-			"Unable to check network existence. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check network existence", "Unable to check network existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -115,10 +112,7 @@ func (r *networkResource) Read(ctx context.Context, req resource.ReadRequest, re
 	// Check network attached to app
 	networkName, err := r.client.NetworkGetNameForApp(ctx, state.AppName.ValueString(), state.Type.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to get network report",
-			"Unable to get network report. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to get network name for app", "Unable to get network name for app. "+err.Error())
 		return
 	}
 	if networkName == "" {
@@ -148,10 +142,7 @@ func (r *networkResource) Create(ctx context.Context, req resource.CreateRequest
 	// Check network attached to app
 	networkName, err := r.client.NetworkGetNameForApp(ctx, plan.AppName.ValueString(), plan.Type.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to get network report",
-			"Unable to get network report. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to get network name for app", "Unable to get network name for app. "+err.Error())
 		return
 	}
 	if networkName == plan.Name.ValueString() {
@@ -166,10 +157,7 @@ func (r *networkResource) Create(ctx context.Context, req resource.CreateRequest
 	// Set network
 	err = r.client.NetworkEnsureAndSetForApp(ctx, plan.AppName.ValueString(), plan.Type.ValueString(), plan.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to set network",
-			"Unable to set network. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to set network", "Unable to set network. "+err.Error())
 		return
 	}
 
@@ -199,10 +187,7 @@ func (r *networkResource) Delete(ctx context.Context, req resource.DeleteRequest
 	// Check network existence
 	exists, err := r.client.NetworkExists(ctx, state.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to check network existence",
-			"Unable to check network existence. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check network existence", "Unable to check network existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -212,10 +197,7 @@ func (r *networkResource) Delete(ctx context.Context, req resource.DeleteRequest
 	// Unset network
 	err = r.client.NetworkUnsetForApp(ctx, state.AppName.ValueString(), state.Type.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to unset network",
-			"Unable to unset network. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to unset network", "Unable to unset network. "+err.Error())
 		return
 	}
 }

@@ -79,10 +79,7 @@ func (r *postgresResource) Read(ctx context.Context, req resource.ReadRequest, r
 	// Check service existence
 	exists, err := r.client.PostgresServiceExists(ctx, state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to check postgres service existence",
-			"Unable to check postgres service existence. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check postgres service existence", "Unable to check postgres service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -111,26 +108,17 @@ func (r *postgresResource) Create(ctx context.Context, req resource.CreateReques
 	// Create service is not exists
 	exists, err := r.client.PostgresServiceExists(ctx, plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to check postgres service existence",
-			"Unable to check postgres service existence. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check postgres service existence", "Unable to check postgres service existence. "+err.Error())
 		return
 	}
 	if exists {
-		resp.Diagnostics.AddError(
-			"Postgres service already exists",
-			"Postgres service already exists",
-		)
+		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Postgres service already exists", "Postgres service already exists")
 		return
 	}
 
 	err = r.client.PostgresServiceCreate(ctx, plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to create postgres service",
-			"Unable to create postgres service. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to create postgres service", "Unable to create postgres service. "+err.Error())
 		return
 	}
 
@@ -160,10 +148,7 @@ func (r *postgresResource) Delete(ctx context.Context, req resource.DeleteReques
 	// Check service existence
 	exists, err := r.client.PostgresServiceExists(ctx, state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to check postgres service existence",
-			"Unable to check postgres service existence. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check postgres service existence", "Unable to check postgres service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -173,10 +158,7 @@ func (r *postgresResource) Delete(ctx context.Context, req resource.DeleteReques
 	// Destroy instance
 	err = r.client.PostgresServiceDestroy(ctx, state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to destroy service",
-			"Unable to destroy service. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to destroy service", "Unable to destroy service. "+err.Error())
 		return
 	}
 }

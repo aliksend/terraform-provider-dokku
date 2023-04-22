@@ -79,10 +79,7 @@ func (r *letsencryptResource) Read(ctx context.Context, req resource.ReadRequest
 	// Read letsencrypt status
 	exists, err := r.client.LetsencryptIsEnabled(ctx, state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read letsencrypt status",
-			"Unable to read letsencrypt status. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to read letsencrypt status", "Unable to read letsencrypt status. "+err.Error())
 		return
 	}
 	if !exists {
@@ -111,37 +108,25 @@ func (r *letsencryptResource) Create(ctx context.Context, req resource.CreateReq
 	// Read letsencrypt status
 	exists, err := r.client.LetsencryptIsEnabled(ctx, plan.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read letsencrypt status",
-			"Unable to read letsencrypt status. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to read letsencrypt status", "Unable to read letsencrypt status. "+err.Error())
 		return
 	}
 	if exists {
-		resp.Diagnostics.AddError(
-			"Letsencrypt already enabled for app",
-			"Letsencrypt already enabled for app",
-		)
+		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "Letsencrypt already enabled for app", "Letsencrypt already enabled for app")
 		return
 	}
 
 	// Enable letsencrypt
 	err = r.client.LetsencryptEnable(ctx, plan.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to enable letsencrypt",
-			"Unable to enable letsencrypt. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to enable letsencrypt", "Unable to enable letsencrypt. "+err.Error())
 		return
 	}
 
 	// Add cronjob for auto-renew
 	err = r.client.LetsencryptAddCronJob(ctx)
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to add letsencrypt cronjob",
-			"Unable to add letsencrypt cronjob. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to add letsencrypt cronjob", "Unable to add letsencrypt cronjob. "+err.Error())
 		return
 	}
 
@@ -171,10 +156,7 @@ func (r *letsencryptResource) Delete(ctx context.Context, req resource.DeleteReq
 	// Read letsencrypt status
 	exists, err := r.client.LetsencryptIsEnabled(ctx, state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read letsencrypt status",
-			"Unable to read letsencrypt status. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to read letsencrypt status", "Unable to read letsencrypt status. "+err.Error())
 		return
 	}
 	if !exists {
@@ -184,10 +166,7 @@ func (r *letsencryptResource) Delete(ctx context.Context, req resource.DeleteReq
 	// Disable letsencrypt
 	err = r.client.LetsencryptDisable(ctx, state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to disable letsencrypt",
-			"Unable to disable letsencrypt. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to disable letsencrypt", "Unable to disable letsencrypt. "+err.Error())
 		return
 	}
 

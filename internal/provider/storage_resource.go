@@ -101,10 +101,7 @@ func (r *storageResource) Read(ctx context.Context, req resource.ReadRequest, re
 	// Read storage
 	exists, mountPath, err := r.client.StorageExists(ctx, state.AppName.ValueString(), state.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read storage",
-			"Unable to read storage. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check storage existence", "Unable to check storage existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -133,34 +130,25 @@ func (r *storageResource) Create(ctx context.Context, req resource.CreateRequest
 
 	exists, _, err := r.client.StorageExists(ctx, plan.AppName.ValueString(), plan.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read storage",
-			"Unable to read storage. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check storage existence", "Unable to check storage existence. "+err.Error())
 		return
 	}
 	if exists {
-		resp.Diagnostics.AddError("Storage already mounted", "Storage already mounted")
+		resp.Diagnostics.AddAttributeError(path.Root("name"), "Storage already mounted", "Storage already mounted")
 		return
 	}
 
 	// Ensure storage
 	err = r.client.StorageEnsure(ctx, plan.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to ensure storage",
-			"Unable to ensure storage. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to ensure storage", "Unable to ensure storage. "+err.Error())
 		return
 	}
 
 	// Mount storage
 	err = r.client.StorageMount(ctx, plan.AppName.ValueString(), plan.Name.ValueString(), plan.MountPath.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to mount storage",
-			"Unable to mount storage. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to mount storage", "Unable to mount storage. "+err.Error())
 		return
 	}
 
@@ -189,10 +177,7 @@ func (r *storageResource) Delete(ctx context.Context, req resource.DeleteRequest
 
 	exists, _, err := r.client.StorageExists(ctx, state.AppName.ValueString(), state.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read storage",
-			"Unable to read storage. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check storage existence", "Unable to check storage existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -202,10 +187,7 @@ func (r *storageResource) Delete(ctx context.Context, req resource.DeleteRequest
 	// Umount storage
 	err = r.client.StorageUnmount(ctx, state.AppName.ValueString(), state.Name.ValueString(), state.MountPath.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to unmount storage",
-			"Unable to unmount storage. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to unmount storage", "Unable to unmount storage. "+err.Error())
 		return
 	}
 }

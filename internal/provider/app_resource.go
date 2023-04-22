@@ -79,24 +79,18 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 	// Check app existence
 	exists, err := r.client.AppExists(ctx, plan.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read app",
-			"Unable to read app. "+err.Error(),
-		)
+		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "Unable to check app existence", "Unable to check app existence. "+err.Error())
 		return
 	}
 	if exists {
-		resp.Diagnostics.AddError("App already exists", "App with specified name already exists")
+		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "App already exists", "App with specified name already exists")
 		return
 	}
 
 	// Create new app
 	err = r.client.AppCreate(ctx, plan.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to create app",
-			"Unable to create app. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to create app", "Unable to create app. "+err.Error())
 		return
 	}
 
@@ -121,10 +115,7 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 	// Check app existence
 	exists, err := r.client.AppExists(ctx, state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read app",
-			"Unable to read app. "+err.Error(),
-		)
+		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "Unable to check app existence", "Unable to check app existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -157,10 +148,7 @@ func (r *appResource) Delete(ctx context.Context, req resource.DeleteRequest, re
 
 	exists, err := r.client.AppExists(ctx, state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read app",
-			"Unable to read app. "+err.Error(),
-		)
+		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "Unable to check app existence", "Unable to check app existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -170,10 +158,7 @@ func (r *appResource) Delete(ctx context.Context, req resource.DeleteRequest, re
 	// Delete existing app
 	err = r.client.AppDestroy(ctx, state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read app",
-			"Unable to read app. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to destroy app", "Unable to destroy app. "+err.Error())
 		return
 	}
 }

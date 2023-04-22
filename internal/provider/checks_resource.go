@@ -87,10 +87,7 @@ func (r *checksResource) Read(ctx context.Context, req resource.ReadRequest, res
 	// Read checks
 	status, err := r.client.ChecksGet(ctx, state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to get checks",
-			"Unable to get checks. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to get checks", "Unable to get checks. "+err.Error())
 		return
 	}
 	state.Status = basetypes.NewStringValue(status)
@@ -116,10 +113,7 @@ func (r *checksResource) Create(ctx context.Context, req resource.CreateRequest,
 	// Set checks
 	err := r.client.ChecksSet(ctx, plan.AppName.ValueString(), plan.Status.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to set checks",
-			"Unable to set checks. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to set checks", "Unable to set checks. "+err.Error())
 		return
 	}
 
@@ -155,24 +149,18 @@ func (r *checksResource) Update(ctx context.Context, req resource.UpdateRequest,
 	// Read checks
 	status, err := r.client.ChecksGet(ctx, state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to get checks",
-			"Unable to get checks. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to get checks", "Unable to get checks. "+err.Error())
 		return
 	}
 	if status != state.Status.ValueString() {
-		resp.Diagnostics.AddError("Checks has invalid status", "Checks has invalid status")
+		resp.Diagnostics.AddAttributeError(path.Root("status"), "Checks has invalid status", "Checks has invalid status")
 		return
 	}
 
 	// Set checks
 	err = r.client.ChecksSet(ctx, state.AppName.ValueString(), plan.Status.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to set checks",
-			"Unable to set checks. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to set checks", "Unable to set checks. "+err.Error())
 		return
 	}
 
@@ -196,10 +184,7 @@ func (r *checksResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	// Set checks
 	err := r.client.ChecksSet(ctx, state.AppName.ValueString(), "enabled")
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to set checks",
-			"Unable to set checks. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to set checks", "Unable to set checks. "+err.Error())
 		return
 	}
 }

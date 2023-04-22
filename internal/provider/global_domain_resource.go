@@ -78,10 +78,7 @@ func (r *globalDomainResource) Read(ctx context.Context, req resource.ReadReques
 	// Read domains
 	exists, err := r.client.GlobalDomainExists(ctx, state.Domain.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read domains",
-			"Unable to read domains. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check global domain existence", "Unable to check global domain existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -110,24 +107,18 @@ func (r *globalDomainResource) Create(ctx context.Context, req resource.CreateRe
 	// Read domains
 	exists, err := r.client.GlobalDomainExists(ctx, plan.Domain.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read domains",
-			"Unable to read domains. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check global domain existence", "Unable to check global domain existence. "+err.Error())
 		return
 	}
 	if exists {
-		resp.Diagnostics.AddError("This global domain is already set", "This global domain is already set")
+		resp.Diagnostics.AddAttributeError(path.Root("domain"), "This global domain is already set", "This global domain is already set")
 		return
 	}
 
 	// Add domain
 	err = r.client.GlobalDomainAdd(ctx, plan.Domain.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to create domain",
-			"Unable to create domain. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to add global domain", "Unable to add global domain. "+err.Error())
 		return
 	}
 
@@ -157,10 +148,7 @@ func (r *globalDomainResource) Delete(ctx context.Context, req resource.DeleteRe
 	// Read domains
 	exists, err := r.client.GlobalDomainExists(ctx, state.Domain.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read domains",
-			"Unable to read domains. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to check global domain existence", "Unable to check global domain existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -170,10 +158,7 @@ func (r *globalDomainResource) Delete(ctx context.Context, req resource.DeleteRe
 	// Clear domains
 	err = r.client.GlobalDomainRemove(ctx, state.Domain.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to delete domain",
-			"Unable to delete domain. "+err.Error(),
-		)
+		resp.Diagnostics.AddError("Unable to remove global domain", "Unable to remove global domain. "+err.Error())
 		return
 	}
 }
