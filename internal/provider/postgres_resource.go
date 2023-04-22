@@ -8,6 +8,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -50,6 +52,9 @@ func (r *postgresResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 		Attributes: map[string]schema.Attribute{
 			"service_name": schema.StringAttribute{
 				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 		},
 	}
@@ -133,48 +138,7 @@ func (r *postgresResource) Create(ctx context.Context, req resource.CreateReques
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *postgresResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// Retrieve values from plan
-	var plan postgresResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	var state postgresResourceModel
-	diags = req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if plan.ServiceName.ValueString() != state.ServiceName.ValueString() {
-		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Unable to change service name", "Unable to change service name")
-		return
-	}
-
-	exists, err := r.client.PostgresServiceExists(ctx, state.ServiceName.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to check postgres service existence",
-			"Unable to check postgres service existence. "+err.Error(),
-		)
-		return
-	}
-	if !exists {
-		resp.Diagnostics.AddError(
-			"Unable to find postgres service",
-			"Unable to find postgres service",
-		)
-		return
-	}
-
-	// Nothing to update
-
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.

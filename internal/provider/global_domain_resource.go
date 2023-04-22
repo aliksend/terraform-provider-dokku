@@ -8,6 +8,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -50,6 +52,9 @@ func (r *globalDomainResource) Schema(_ context.Context, _ resource.SchemaReques
 		Attributes: map[string]schema.Attribute{
 			"domain": schema.StringAttribute{
 				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 		},
 	}
@@ -131,60 +136,7 @@ func (r *globalDomainResource) Create(ctx context.Context, req resource.CreateRe
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *globalDomainResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// Retrieve values from plan
-	var plan globalDomainResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	var state globalDomainResourceModel
-	diags = req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Read domains
-	exists, err := r.client.GlobalDomainExists(ctx, state.Domain.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read domains",
-			"Unable to read domains. "+err.Error(),
-		)
-		return
-	}
-	if !exists {
-		resp.Diagnostics.AddError("Domain not exists", "Domain not exists")
-		return
-	}
-
-	if plan.Domain.ValueString() != state.Domain.ValueString() {
-		err := r.client.GlobalDomainRemove(ctx, state.Domain.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Unable to create domains",
-				"Unable to create domains. "+err.Error(),
-			)
-			return
-		}
-
-		// Add domain
-		err = r.client.GlobalDomainAdd(ctx, plan.Domain.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Unable to create domain",
-				"Unable to create domain. "+err.Error(),
-			)
-			return
-		}
-	}
-
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.

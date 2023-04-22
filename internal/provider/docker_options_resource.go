@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -53,12 +55,21 @@ func (r *dockerOptionResource) Schema(_ context.Context, _ resource.SchemaReques
 		Attributes: map[string]schema.Attribute{
 			"app_name": schema.StringAttribute{
 				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"phase": schema.StringAttribute{
 				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"value": schema.StringAttribute{
 				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 		},
 	}
@@ -139,63 +150,7 @@ func (r *dockerOptionResource) Create(ctx context.Context, req resource.CreateRe
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *dockerOptionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// Retrieve values from plan
-	var plan dockerOptionResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	var state dockerOptionResourceModel
-	diags = req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if plan.AppName.ValueString() != state.AppName.ValueString() {
-		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "Unable to change app name", "Unable to change app name")
-		return
-	}
-
-	exists, err := r.client.DockerOptionExists(ctx, state.AppName.ValueString(), state.Phase.ValueString(), state.Value.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read docker-option",
-			"Unable to read docker-option. "+err.Error(),
-		)
-		return
-	}
-	if !exists {
-		resp.Diagnostics.AddError("Docker option not found", "Docker option not found")
-		return
-	}
-
-	// Remove docker-option
-	err = r.client.DockerOptionRemove(ctx, state.AppName.ValueString(), state.Phase.ValueString(), state.Value.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to remove docker-option",
-			"Unable to remove docker-option. "+err.Error(),
-		)
-		return
-	}
-
-	// Add docker-option
-	err = r.client.DockerOptionAdd(ctx, plan.AppName.ValueString(), plan.Phase.ValueString(), plan.Value.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to add docker-option",
-			"Unable to add docker-option. "+err.Error(),
-		)
-		return
-	}
-
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.

@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
@@ -54,12 +56,21 @@ func (r *storageResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 		Attributes: map[string]schema.Attribute{
 			"app_name": schema.StringAttribute{
 				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"name": schema.StringAttribute{
 				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"mount_path": schema.StringAttribute{
 				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 		},
 	}
@@ -151,77 +162,7 @@ func (r *storageResource) Create(ctx context.Context, req resource.CreateRequest
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *storageResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// Retrieve values from plan
-	var plan storageResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	var state storageResourceModel
-	diags = req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if plan.AppName.ValueString() != state.AppName.ValueString() {
-		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "Unable to change app name", "Unable to change app name")
-		return
-	}
-	if plan.Name.ValueString() != state.Name.ValueString() {
-		resp.Diagnostics.AddAttributeError(path.Root("name"), "Unable to change storage name", "Unable to change storage name")
-		return
-	}
-
-	exists, _, err := r.client.StorageExists(ctx, state.AppName.ValueString(), state.Name.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read storage",
-			"Unable to read storage. "+err.Error(),
-		)
-		return
-	}
-	if !exists {
-		resp.Diagnostics.AddError("Storage not mounted", "Storage not mounted")
-		return
-	}
-
-	// Unmount storage
-	err = r.client.StorageUnmount(ctx, state.AppName.ValueString(), state.Name.ValueString(), state.MountPath.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to unmount storage",
-			"Unable to unmount storage. "+err.Error(),
-		)
-		return
-	}
-
-	// Ensure storage
-	err = r.client.StorageEnsure(ctx, plan.Name.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to ensure storage",
-			"Unable to ensure storage. "+err.Error(),
-		)
-		return
-	}
-
-	// Mount storage
-	err = r.client.StorageMount(ctx, plan.AppName.ValueString(), plan.Name.ValueString(), plan.MountPath.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to mount storage",
-			"Unable to mount storage. "+err.Error(),
-		)
-		return
-	}
-
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.

@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -52,9 +54,15 @@ func (r *domainResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 		Attributes: map[string]schema.Attribute{
 			"app_name": schema.StringAttribute{
 				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"domain": schema.StringAttribute{
 				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 		},
 	}
@@ -136,65 +144,7 @@ func (r *domainResource) Create(ctx context.Context, req resource.CreateRequest,
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *domainResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// Retrieve values from plan
-	var plan domainResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	var state domainResourceModel
-	diags = req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Read domain
-	exists, err := r.client.DomainExists(ctx, state.AppName.ValueString(), state.Domain.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read domains",
-			"Unable to read domains. "+err.Error(),
-		)
-		return
-	}
-	if !exists {
-		resp.Diagnostics.AddError("Domain not found for app", "Domain not found for app")
-		return
-	}
-
-	if plan.AppName.ValueString() != state.AppName.ValueString() {
-		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "Unable to change app name", "Unable to change app name")
-		return
-	}
-
-	if plan.Domain.ValueString() != state.Domain.ValueString() {
-		err := r.client.DomainRemove(ctx, state.AppName.ValueString(), state.Domain.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Unable to remove domain",
-				"Unable to remove domain. "+err.Error(),
-			)
-			return
-		}
-
-		// Add domain
-		err = r.client.DomainAdd(ctx, plan.AppName.ValueString(), plan.Domain.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Unable to create domain",
-				"Unable to create domain. "+err.Error(),
-			)
-			return
-		}
-	}
-
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.

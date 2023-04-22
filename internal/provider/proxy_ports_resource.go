@@ -5,9 +5,11 @@ import (
 
 	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
 
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
@@ -54,15 +56,27 @@ func (r *proxyPortResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 		Attributes: map[string]schema.Attribute{
 			"app_name": schema.StringAttribute{
 				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"scheme": schema.StringAttribute{
 				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"host_port": schema.Int64Attribute{
 				Required: true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.RequiresReplace(),
+				},
 			},
 			"container_port": schema.Int64Attribute{
 				Required: true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.RequiresReplace(),
+				},
 			},
 		},
 	}
@@ -147,64 +161,7 @@ func (r *proxyPortResource) Create(ctx context.Context, req resource.CreateReque
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *proxyPortResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// Retrieve values from plan
-	var plan proxyPortResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	var state proxyPortResourceModel
-	diags = req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if plan.AppName.ValueString() != state.AppName.ValueString() {
-		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "Unable to change app name", "Unable to change app name")
-		return
-	}
-
-	// Read proxy ports
-	exists, _, _, err := r.client.ProxyPortExists(ctx, state.AppName.ValueString(), state.HostPort.ValueInt64())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to read proxy ports",
-			"Unable to read proxy ports. "+err.Error(),
-		)
-		return
-	}
-	if !exists {
-		resp.Diagnostics.AddError("Proxy port not exists", "Proxy port not exists")
-		return
-	}
-
-	// Unset proxy port
-	err = r.client.ProxyPortRemove(ctx, state.AppName.ValueString(), state.HostPort.ValueInt64())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to remove proxy port",
-			"Unable to remove proxy port. "+err.Error(),
-		)
-		return
-	}
-
-	// Set proxy port
-	err = r.client.ProxyPortAdd(ctx, plan.AppName.ValueString(), plan.Scheme.ValueString(), plan.HostPort.ValueInt64(), plan.ContainerPort.ValueInt64())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to add proxy port",
-			"Unable to add proxy port. "+err.Error(),
-		)
-		return
-	}
-
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.

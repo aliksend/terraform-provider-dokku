@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
@@ -54,12 +56,21 @@ func (r *networkResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 		Attributes: map[string]schema.Attribute{
 			"app_name": schema.StringAttribute{
 				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"type": schema.StringAttribute{
 				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"name": schema.StringAttribute{
 				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 		},
 	}
@@ -160,81 +171,7 @@ func (r *networkResource) Create(ctx context.Context, req resource.CreateRequest
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *networkResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// Retrieve values from plan
-	var plan networkResourceModel
-	diags := req.Plan.Get(ctx, &plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	var state networkResourceModel
-	diags = req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if plan.AppName.ValueString() != state.AppName.ValueString() {
-		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "Unable to change app name", "Unable to change app name")
-		return
-	}
-
-	// Check network existence
-	exists, err := r.client.NetworkExists(ctx, state.Name.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to check network existence",
-			"Unable to check network existence. "+err.Error(),
-		)
-		return
-	}
-	if !exists {
-		resp.Diagnostics.AddError(
-			"Network not exists",
-			"Network not exists",
-		)
-		return
-	}
-
-	// Check network attached to app
-	networkName, err := r.client.NetworkGetNameForApp(ctx, state.AppName.ValueString(), state.Type.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to get network report",
-			"Unable to get network report. "+err.Error(),
-		)
-		return
-	}
-	if networkName != state.Name.ValueString() {
-		resp.Diagnostics.AddError("Network not attached to app", "Network not attached to app")
-		return
-	}
-
-	// Unset network
-	err = r.client.NetworkUnsetForApp(ctx, state.AppName.ValueString(), state.Name.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to unset network",
-			"Unable to unset network. "+err.Error(),
-		)
-		return
-	}
-
-	// Set network
-	err = r.client.NetworkEnsureAndSetForApp(ctx, plan.AppName.ValueString(), plan.Type.ValueString(), plan.Name.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Unable to set network",
-			"Unable to set network. "+err.Error(),
-		)
-		return
-	}
-
-	diags = resp.State.Set(ctx, plan)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
