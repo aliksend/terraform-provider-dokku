@@ -2,13 +2,18 @@ package provider
 
 import (
 	"context"
+	"regexp"
 	"strings"
 
 	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
@@ -54,12 +59,27 @@ func (r *configResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 		Attributes: map[string]schema.Attribute{
 			"app_name": schema.StringAttribute{
 				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-z][a-z0-9-]*$`), "invalid app_name"),
+				},
 			},
 			"name": schema.StringAttribute{
 				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`), "invalid name"),
+				},
 			},
 			"value": schema.StringAttribute{
 				Required: true,
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 		},
 	}
@@ -160,6 +180,10 @@ func (r *configResource) Update(ctx context.Context, req resource.UpdateRequest,
 		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "Unable to change app name", "Unable to change app name")
 		return
 	}
+	if plan.Name.ValueString() != state.Name.ValueString() {
+		resp.Diagnostics.AddAttributeError(path.Root("name"), "Unable to change name", "Unable to change name")
+		return
+	}
 
 	// Read config value
 	value, err := r.client.ConfigGet(ctx, state.AppName.ValueString(), state.Name.ValueString())
@@ -171,7 +195,7 @@ func (r *configResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 	if value == "" {
-		resp.Diagnostics.AddError("Config not found", "Config with this name already exists")
+		resp.Diagnostics.AddError("Config not found", "Config not found")
 		return
 	}
 
