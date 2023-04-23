@@ -23,6 +23,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// TODO Добавить примеры в папку с примерамиx. Дописать Description-ы для аттрибутов
+
 // Ensure dokkuProvider satisfies various provider interfaces.
 var _ provider.Provider = &dokkuProvider{}
 
@@ -48,6 +50,7 @@ func (p *dokkuProvider) Metadata(ctx context.Context, req provider.MetadataReque
 
 func (p *dokkuProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: "Interact with dokku",
 		Attributes: map[string]schema.Attribute{
 			"ssh_host": schema.StringAttribute{
 				Required: true,

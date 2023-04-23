@@ -1,1 +1,3 @@
-resource "dokku_app" "delme" {}
+resource "dokku_app" "demo" {
+  app_name = "demo"
+}

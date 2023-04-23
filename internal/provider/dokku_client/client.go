@@ -27,7 +27,7 @@ var mutex = &sync.Mutex{}
 
 // Run runs any ssh command
 //
-// Deprecated: Use specific methods
+// Deprecated: Use specific methods.
 func (c *Client) Run(ctx context.Context, cmd string) (stdout string, status int, err error) {
 	// disabling concurrent calls
 	mutex.Lock()

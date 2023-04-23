@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -33,9 +34,10 @@ type configResource struct {
 }
 
 type configResourceModel struct {
-	AppName types.String `tfsdk:"app_name"`
-	Name    types.String `tfsdk:"name"`
-	Value   types.String `tfsdk:"value"`
+	AppName   types.String `tfsdk:"app_name"`
+	Name      types.String `tfsdk:"name"`
+	Value     types.String `tfsdk:"value"`
+	NoRestart types.Bool   `tfsdk:"no_restart"`
 }
 
 // Metadata returns the resource type name.
@@ -80,6 +82,9 @@ func (r *configResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
+			},
+			"no_restart": schema.BoolAttribute{
+				Default: booldefault.StaticBool(false),
 			},
 		},
 	}
@@ -137,7 +142,7 @@ func (r *configResource) Create(ctx context.Context, req resource.CreateRequest,
 	}
 
 	// Set config
-	err = r.client.ConfigSet(ctx, plan.AppName.ValueString(), plan.Name.ValueString(), plan.Value.ValueString())
+	err = r.client.ConfigSet(ctx, plan.AppName.ValueString(), plan.Name.ValueString(), plan.Value.ValueString(), plan.NoRestart.ValueBool())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to set config value", "Unable to set config value. "+err.Error())
 		return
@@ -187,11 +192,13 @@ func (r *configResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	// Set config value
-	err = r.client.ConfigSet(ctx, plan.AppName.ValueString(), plan.Name.ValueString(), plan.Value.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to set config value", "Unable to set config value. "+err.Error())
-		return
+	if value != plan.Value.ValueString() {
+		// Set config value
+		err = r.client.ConfigSet(ctx, plan.AppName.ValueString(), plan.Name.ValueString(), plan.Value.ValueString(), plan.NoRestart.ValueBool())
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to set config value", "Unable to set config value. "+err.Error())
+			return
+		}
 	}
 
 	diags = resp.State.Set(ctx, plan)
@@ -222,7 +229,7 @@ func (r *configResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	}
 
 	// Clear config
-	err = r.client.ConfigUnset(ctx, state.AppName.ValueString(), state.Name.ValueString())
+	err = r.client.ConfigUnset(ctx, state.AppName.ValueString(), state.Name.ValueString(), state.NoRestart.ValueBool())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to unset config value", "Unable to unset config value. "+err.Error())
 		return

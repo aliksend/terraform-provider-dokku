@@ -9,7 +9,7 @@ import (
 func (c *Client) DockerOptionExists(ctx context.Context, appName string, phase string, value string) (bool, error) {
 	stdout, _, err := c.Run(ctx, fmt.Sprintf("docker-options:report %s", appName))
 	if err != nil {
-		return false, nil
+		return false, err
 	}
 
 	expectedName := fmt.Sprintf("Docker options %s", phase)
