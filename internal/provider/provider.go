@@ -270,6 +270,7 @@ func (p *dokkuProvider) Resources(ctx context.Context) []func() resource.Resourc
 		NewAppResource,
 		NewChecksResource,
 		NewConfigResource,
+		NewDeployResource,
 		NewDockerOptionResource,
 		NewDomainResource,
 		NewGlobalDomainResource,
