@@ -996,6 +996,7 @@ func (r *appResource) ImportState(ctx context.Context, req resource.ImportStateR
 
 func formatDockerOptionsPhases(phasesSet types.Set) (phases []string) {
 	for _, phase := range phasesSet.Elements() {
+		//nolint:forcetypeassert
 		phaseStr := phase.(types.String)
 		phases = append(phases, phaseStr.ValueString())
 	}

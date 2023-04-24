@@ -3,7 +3,9 @@ package provider
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"os"
 	"os/user"
 	"path/filepath"
 	"regexp"
@@ -135,7 +137,48 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		username = config.User.ValueString()
 	}
 	if !config.Cert.IsNull() {
-		certPath = config.Cert.ValueString()
+		cert := config.Cert.ValueString()
+		parts := strings.Split(cert, ":")
+		switch parts[0] {
+		case "env":
+			var err error
+			certPath, err = tmpFileWithValue(os.Getenv(parts[1]))
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("ssh_cert"), "Unable to create temp file", "Unable to create temp file. "+err.Error())
+				return
+			}
+			defer os.Remove(certPath)
+		case "raw":
+			var err error
+			certPath, err = tmpFileWithValue(parts[1])
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("ssh_cert"), "Unable to create temp file", "Unable to create temp file. "+err.Error())
+				return
+			}
+			defer os.Remove(certPath)
+		case "file":
+			certPath = parts[1]
+		default:
+			if cert[0] == '~' || cert[1] == '/' {
+				certPath = cert
+			} else if cert[0] == '$' {
+				var err error
+				certPath, err = tmpFileWithValue(os.Getenv(cert[1:]))
+				if err != nil {
+					resp.Diagnostics.AddAttributeError(path.Root("ssh_cert"), "Unable to create temp file", "Unable to create temp file. "+err.Error())
+					return
+				}
+				defer os.Remove(certPath)
+			} else if cert[0] == '-' {
+				var err error
+				certPath, err = tmpFileWithValue(cert)
+				if err != nil {
+					resp.Diagnostics.AddAttributeError(path.Root("ssh_cert"), "Unable to create temp file", "Unable to create temp file. "+err.Error())
+					return
+				}
+				defer os.Remove(certPath)
+			}
+		}
 	}
 	if !config.FailOnUntestedVersion.IsNull() {
 		failOnUntestedVersion = config.FailOnUntestedVersion.ValueBool()
@@ -311,4 +354,16 @@ func verifyHost(host string, remote net.Addr, key ssh.PublicKey) error {
 
 	// Add the new host to known hosts file.
 	return goph.AddKnownHost(host, remote, key, "")
+}
+
+func tmpFileWithValue(value string) (string, error) {
+	file, err := ioutil.TempFile("", "ssh_cert")
+	if err != nil {
+		return "", err
+	}
+	err = ioutil.WriteFile(file.Name(), []byte(value), os.ModePerm)
+	if err != nil {
+		return "", err
+	}
+	return file.Name(), nil
 }
