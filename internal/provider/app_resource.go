@@ -6,6 +6,8 @@ import (
 
 	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -14,12 +16,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 var (
-	_ resource.Resource                = &appResource{}
-	_ resource.ResourceWithConfigure   = &appResource{}
-	_ resource.ResourceWithImportState = &appResource{}
+	_ resource.Resource                   = &appResource{}
+	_ resource.ResourceWithConfigure      = &appResource{}
+	_ resource.ResourceWithImportState    = &appResource{}
+	_ resource.ResourceWithValidateConfig = &appResource{}
 )
 
 func NewAppResource() resource.Resource {
@@ -31,7 +35,48 @@ type appResource struct {
 }
 
 type appResourceModel struct {
-	AppName types.String `tfsdk:"app_name"`
+	AppName       types.String                 `tfsdk:"app_name"`
+	Config        map[string]types.String      `tfsdk:"config"`
+	Storage       map[string]storageModel      `tfsdk:"storage"`
+	Checks        *checkModel                  `tfsdk:"checks"`
+	Domains       []types.String               `tfsdk:"domains"`
+	ProxyPorts    map[string]proxyPortModel    `tfsdk:"proxy_ports"`
+	DockerOptions map[string]dockerOptionModel `tfsdk:"docker_options"`
+	Networks      *networkModel                `tfsdk:"networks"`
+	Deploy        *deployModel                 `tfsdk:"deploy"`
+}
+
+type storageModel struct {
+	MountPath types.String `tfsdk:"mount_path"`
+}
+
+type checkModel struct {
+	Status types.String `tfsdk:"status"`
+}
+
+type proxyPortModel struct {
+	Scheme        types.String `tfsdk:"scheme"`
+	ContainerPort types.String `tfsdk:"container_port"`
+}
+
+type dockerOptionModel struct {
+	Phase types.Set `tfsdk:"phase"`
+}
+
+type networkModel struct {
+	AttachPostCreate types.String `tfsdk:"attach_post_create"`
+	AttachPostDeploy types.String `tfsdk:"attach_post_deploy"`
+	InitialNetwork   types.String `tfsdk:"initial_network"`
+}
+
+type deployModel struct {
+	Type               types.String `tfsdk:"type"`
+	DockerImage        types.String `tfsdk:"docker_image"`
+	GitRepository      types.String `tfsdk:"git_repository"`
+	GitRepositoryBuild types.Bool   `tfsdk:"git_repository_build"`
+	GitRepositoryRef   types.String `tfsdk:"git_repository_ref"`
+	ArchiveType        types.String `tfsdk:"archive_type"`
+	ArchiveUrl         types.String `tfsdk:"archive_url"`
 }
 
 // Metadata returns the resource type name.
@@ -62,7 +107,348 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-z][a-z0-9-]*$`), "invalid app_name"),
 				},
 			},
+			"config": schema.MapAttribute{
+				Optional:    true,
+				ElementType: types.StringType,
+				Validators: []validator.Map{
+					mapvalidator.KeysAre(stringvalidator.RegexMatches(regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`), "invalid name")),
+					mapvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
+				},
+			},
+			"storage": schema.MapNestedAttribute{
+				Optional: true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"mount_path": schema.StringAttribute{
+							Required: true,
+							Validators: []validator.String{
+								stringvalidator.LengthAtLeast(1),
+							},
+						},
+					},
+				},
+				Validators: []validator.Map{
+					mapvalidator.KeysAre(stringvalidator.RegexMatches(regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`), "invalid name")),
+				},
+			},
+			"checks": schema.SingleNestedAttribute{
+				Optional: true,
+				Attributes: map[string]schema.Attribute{
+					"status": schema.StringAttribute{
+						Required: true,
+						Validators: []validator.String{
+							stringvalidator.OneOf("enabled", "disabled", "skipped"),
+						},
+					},
+				},
+			},
+			"domains": schema.SetAttribute{
+				Optional:    true,
+				ElementType: types.StringType,
+				Validators: []validator.Set{
+					setvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
+				},
+			},
+			"proxy_ports": schema.MapNestedAttribute{
+				Optional: true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"scheme": schema.StringAttribute{
+							Required: true,
+							Validators: []validator.String{
+								stringvalidator.OneOf("http", "https"),
+							},
+						},
+						"container_port": schema.StringAttribute{
+							Required: true,
+							Validators: []validator.String{
+								stringvalidator.RegexMatches(regexp.MustCompile(`^\d+$`), "Must be integer"),
+							},
+						},
+					},
+				},
+				Validators: []validator.Map{
+					mapvalidator.KeysAre(stringvalidator.RegexMatches(regexp.MustCompile(`^\d+$`), "Must be integer")),
+				},
+			},
+			"docker_options": schema.MapNestedAttribute{
+				Optional: true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"phase": schema.SetAttribute{
+							Required:    true,
+							ElementType: types.StringType,
+							Validators: []validator.Set{
+								setvalidator.ValueStringsAre(stringvalidator.OneOf("build", "deploy", "run")),
+							},
+						},
+					},
+				},
+				Validators: []validator.Map{
+					mapvalidator.KeysAre(stringvalidator.LengthAtLeast(1)),
+				},
+			},
+			"networks": schema.SingleNestedAttribute{
+				Optional: true,
+				Attributes: map[string]schema.Attribute{
+					"attach_post_create": schema.StringAttribute{
+						Optional: true,
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+						},
+					},
+					"attach_post_deploy": schema.StringAttribute{
+						Optional: true,
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+						},
+					},
+					"initial_network": schema.StringAttribute{
+						Optional: true,
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+						},
+					},
+				},
+			},
+			"deploy": schema.SingleNestedAttribute{
+				Optional: true,
+				Attributes: map[string]schema.Attribute{
+					"type": schema.StringAttribute{
+						Required: true,
+						Validators: []validator.String{
+							stringvalidator.OneOf("archive", "docker_image", "git_repository"),
+						},
+					},
+					"docker_image": schema.StringAttribute{
+						Optional: true,
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+						},
+					},
+					"git_repository": schema.StringAttribute{
+						Optional: true,
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+						},
+					},
+					"git_repository_build": schema.BoolAttribute{
+						Optional: true,
+						// Default: booldefault.StaticBool(false),
+					},
+					"git_repository_ref": schema.StringAttribute{
+						Optional: true,
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+						},
+					},
+					"archive_type": schema.StringAttribute{
+						Optional: true,
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+						},
+					},
+					"archive_url": schema.StringAttribute{
+						Optional: true,
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+						},
+					},
+				},
+			},
 		},
+	}
+}
+func (r *appResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data appResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if data.Deploy != nil {
+		switch data.Deploy.Type.ValueString() {
+		case "archive":
+			if data.Deploy.ArchiveUrl.IsNull() {
+				resp.Diagnostics.AddAttributeError(path.Root("deploy").AtName("archive_url"), "archive_url must be set for type archive", "archive_url must be set for type archive")
+			}
+		case "docker_image":
+			if data.Deploy.DockerImage.IsNull() {
+				resp.Diagnostics.AddAttributeError(path.Root("deploy").AtName("docker_image"), "docker_image must be set for type archive", "docker_image must be set for type archive")
+			}
+		case "git_repository":
+			if data.Deploy.GitRepository.IsNull() {
+				resp.Diagnostics.AddAttributeError(path.Root("deploy").AtName("git_repository"), "git_repository must be set for type archive", "git_repository must be set for type archive")
+			}
+		default:
+			resp.Diagnostics.AddAttributeError(path.Root("deploy").AtName("type"), "Invalid type value", "Invalid type value")
+		}
+	}
+}
+
+// Read refreshes the Terraform state with the latest data.
+func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	// Get current state
+	var state appResourceModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Check app existence
+	exists, err := r.client.AppExists(ctx, state.AppName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "Unable to check app existence", "Unable to check app existence. "+err.Error())
+		return
+	}
+	if !exists {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
+	config, err := r.client.ConfigExport(ctx, state.AppName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(path.Root("config"), "Unable to get config", "Unable to get config")
+	} else {
+		cfg := make(map[string]basetypes.StringValue)
+		for k, v := range config {
+			found := false
+			for knownK := range state.Config {
+				if k == knownK {
+					found = true
+					break
+				}
+			}
+			// only known keys
+			if found {
+				cfg[k] = basetypes.NewStringValue(v)
+			}
+		}
+		if len(cfg) == 0 {
+			state.Config = nil
+		} else {
+			state.Config = cfg
+		}
+	}
+
+	storage, err := r.client.StorageExport(ctx, state.AppName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(path.Root("storage"), "Unable to get storage", "Unable to get storage")
+	} else {
+		if len(storage) == 0 {
+			state.Storage = nil
+		} else {
+			state.Storage = make(map[string]storageModel)
+			for k, v := range storage {
+				state.Storage[k] = storageModel{
+					MountPath: basetypes.NewStringValue(v),
+				}
+			}
+		}
+	}
+
+	checkStatus, err := r.client.ChecksGet(ctx, state.AppName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(path.Root("checks"), "Unable to get checks", "Unable to get checks")
+	} else {
+		if checkStatus == "enabled" {
+			state.Checks = nil
+		} else {
+			state.Checks = &checkModel{
+				Status: basetypes.NewStringValue(checkStatus),
+			}
+		}
+	}
+
+	domains, err := r.client.DomainsExport(ctx, state.AppName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to get domains", "Unable to get domains")
+	} else {
+		if len(domains) == 0 {
+			state.Domains = nil
+		} else {
+			state.Domains = make([]types.String, len(domains))
+			for i, d := range domains {
+				state.Domains[i] = basetypes.NewStringValue(d)
+			}
+		}
+	}
+
+	proxyPorts, err := r.client.ProxyPortsExport(ctx, state.AppName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to get proxy_ports", "Unable to get proxy_ports")
+	} else {
+		pp := make(map[string]proxyPortModel)
+		for _, p := range proxyPorts {
+			found := false
+			for v := range state.ProxyPorts {
+				if v == p.HostPort {
+					found = true
+					break
+				}
+			}
+			// only known hostport's
+			if found {
+				pp[p.HostPort] = proxyPortModel{
+					Scheme:        basetypes.NewStringValue(p.Scheme),
+					ContainerPort: basetypes.NewStringValue(p.ContainerPort),
+				}
+			}
+		}
+		if len(pp) == 0 {
+			state.ProxyPorts = nil
+		} else {
+			state.ProxyPorts = pp
+		}
+	}
+
+	// dockerOptions -- unable to read because it can be set externally
+
+	networks, err := r.client.NetworksReport(ctx, state.AppName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddAttributeError(path.Root("networks"), "Unable to get networks", "Unable to get networks")
+	} else {
+		var attachPostCreate types.String
+		if networks["attach post create"] != "" {
+			attachPostCreate = basetypes.NewStringValue(networks["attach post create"])
+		} else {
+			attachPostCreate = basetypes.NewStringNull()
+		}
+		var attachPostDeploy types.String
+		if networks["attach post deploy"] != "" {
+			attachPostDeploy = basetypes.NewStringValue(networks["attach post deploy"])
+		} else {
+			attachPostDeploy = basetypes.NewStringNull()
+		}
+		var initialNetwork types.String
+		if networks["initial network"] != "" {
+			initialNetwork = basetypes.NewStringValue(networks["initial network"])
+		} else {
+			initialNetwork = basetypes.NewStringNull()
+		}
+		if attachPostCreate.IsNull() && attachPostDeploy.IsNull() && initialNetwork.IsNull() {
+			state.Networks = nil
+		} else {
+			state.Networks = &networkModel{
+				AttachPostCreate: attachPostCreate,
+				AttachPostDeploy: attachPostDeploy,
+				InitialNetwork:   initialNetwork,
+			}
+		}
+	}
+
+	// deploy -- unable to read
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Set refreshed state
+	diags = resp.State.Set(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
 	}
 }
 
@@ -91,6 +477,110 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 	err = r.client.AppCreate(ctx, plan.AppName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to create app", "Unable to create app. "+err.Error())
+		// if not created - return to not try to destroy on other errors
+		return
+	}
+
+	if len(plan.Config) != 0 {
+		config := make(map[string]string)
+		for k, v := range plan.Config {
+			config[k] = v.ValueString()
+		}
+		err := r.client.ConfigSet(ctx, plan.AppName.ValueString(), config)
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("config"), "Unable to set config", "Unable to set config")
+		}
+	}
+
+	for hostPath, storage := range plan.Storage {
+		err := r.client.StorageEnsureAndMount(ctx, plan.AppName.ValueString(), hostPath, storage.MountPath.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(hostPath), "Unable to mount storage", "Unable to mount storage")
+		}
+	}
+
+	if plan.Checks != nil {
+		if !plan.Checks.Status.IsNull() {
+			err := r.client.ChecksSet(ctx, plan.AppName.ValueString(), plan.Checks.Status.ValueString())
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("checks"), "Unable to set checks", "Unable to set checks")
+			}
+		}
+	}
+
+	if len(plan.Domains) != 0 {
+		var domains []string
+		for _, domain := range plan.Domains {
+			domains = append(domains, domain.ValueString())
+		}
+		err := r.client.DomainsSet(ctx, plan.AppName.ValueString(), domains)
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to add domain", "Unable to add domain")
+		}
+	}
+
+	if len(plan.ProxyPorts) != 0 {
+		var proxyPorts []dokkuclient.ProxyPort
+		for hostPort, proxyPort := range plan.ProxyPorts {
+			proxyPorts = append(proxyPorts, dokkuclient.ProxyPort{
+				Scheme:        proxyPort.Scheme.ValueString(),
+				HostPort:      hostPort,
+				ContainerPort: proxyPort.ContainerPort.ValueString(),
+			})
+		}
+		err := r.client.ProxyPortsSet(ctx, plan.AppName.ValueString(), proxyPorts)
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to set proxy-ports", "Unable to set proxy-ports")
+		}
+	}
+
+	for option, dockerOption := range plan.DockerOptions {
+		err := r.client.DockerOptionAdd(ctx, plan.AppName.ValueString(), formatDockerOptionsPhases(dockerOption.Phase), option)
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("docker_options").AtMapKey(option), "Unable to add docker option", "Unable to add docker option")
+		}
+	}
+
+	if plan.Networks != nil {
+		if !plan.Networks.AttachPostCreate.IsNull() {
+			err := r.client.NetworkEnsureAndSetForApp(ctx, plan.AppName.ValueString(), "attach-post-create", plan.Networks.AttachPostCreate.ValueString())
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("attach_post_create"), "Unable to set network", "Unable to set network")
+			}
+		}
+		if !plan.Networks.AttachPostDeploy.IsNull() {
+			err := r.client.NetworkEnsureAndSetForApp(ctx, plan.AppName.ValueString(), "attach-post-deploy", plan.Networks.AttachPostDeploy.ValueString())
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("attach_post_deploy"), "Unable to set network", "Unable to set network")
+			}
+		}
+		if !plan.Networks.InitialNetwork.IsNull() {
+			err := r.client.NetworkEnsureAndSetForApp(ctx, plan.AppName.ValueString(), "initial_network", plan.Networks.InitialNetwork.ValueString())
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("initial_network"), "Unable to set network", "Unable to set network")
+			}
+		}
+	}
+
+	if plan.Deploy != nil {
+		switch plan.Deploy.Type.ValueString() {
+		case "archive":
+			err = r.client.DeployFromArchive(ctx, plan.AppName.ValueString(), plan.Deploy.ArchiveType.ValueString(), plan.Deploy.ArchiveUrl.ValueString())
+		case "docker_image":
+			err = r.client.DeployFromImage(ctx, plan.AppName.ValueString(), plan.Deploy.DockerImage.ValueString())
+		case "git_repository":
+			err = r.client.DeploySyncRepository(ctx, plan.AppName.ValueString(), plan.Deploy.GitRepository.ValueString(), plan.Deploy.GitRepositoryBuild.ValueBool(), plan.Deploy.GitRepositoryRef.ValueString())
+		}
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("deploy"), "Unable to deploy", "Unable to deploy. "+err.Error())
+		}
+	}
+
+	if resp.Diagnostics.HasError() {
+		err := r.client.AppDestroy(ctx, plan.AppName.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to destroy app", "Unable to destroy app. "+err.Error())
+		}
 		return
 	}
 
@@ -102,38 +592,374 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 	}
 }
 
-// Read refreshes the Terraform state with the latest data.
-func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	// Get current state
-	var state appResourceModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Check app existence
-	exists, err := r.client.AppExists(ctx, state.AppName.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "Unable to check app existence", "Unable to check app existence. "+err.Error())
-		return
-	}
-	if !exists {
-		resp.State.RemoveResource(ctx)
-		return
-	}
-
-	// Set refreshed state
-	diags = resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-}
-
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
+	// Retrieve values from plan
+	var plan appResourceModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	var state appResourceModel
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if plan.AppName.ValueString() != state.AppName.ValueString() {
+		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "App name can't be changed", "App name can't be changed")
+		return
+	}
+	appName := plan.AppName.ValueString()
+
+	restartRequired := false
+
+	// -- config
+	var namesToUnset []string
+	for stateName := range state.Config {
+		found := false
+		for planName := range plan.Config {
+			if planName == stateName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			namesToUnset = append(namesToUnset, stateName)
+		}
+	}
+	if len(namesToUnset) != 0 {
+		err := r.client.ConfigUnset(ctx, appName, namesToUnset)
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("config"), "Unable to unset config", "Unable to unset config. "+err.Error())
+		}
+		restartRequired = true
+	}
+
+	configToSet := make(map[string]string)
+	for k, v := range plan.Config {
+		if !state.Config[k].Equal(v) {
+			configToSet[k] = v.ValueString()
+		}
+	}
+	if len(configToSet) != 0 {
+		err := r.client.ConfigSet(ctx, appName, configToSet)
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("config"), "Unable to set config", "Unable to set config. "+err.Error())
+		}
+		restartRequired = true
+	}
+	// --
+
+	// -- storage
+	for existingName, existingStorage := range state.Storage {
+		found := false
+		for planName, planStorage := range plan.Storage {
+			if existingName == planName {
+				found = true
+
+				if !existingStorage.MountPath.Equal(planStorage.MountPath) {
+					err := r.client.StorageUnmount(ctx, appName, existingName, existingStorage.MountPath.ValueString())
+					if err != nil {
+						resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(existingName), "Unable to unmount storage", "Unable to unmount storage. "+err.Error())
+					}
+
+					err = r.client.StorageMount(ctx, appName, planName, planStorage.MountPath.ValueString())
+					if err != nil {
+						resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(existingName), "Unable to mount storage", "Unable to mount storage. "+err.Error())
+					}
+				}
+
+				break
+			}
+		}
+		if !found {
+			err := r.client.StorageUnmount(ctx, appName, existingName, existingStorage.MountPath.ValueString())
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(existingName), "Unable to unmount storage", "Unable to unmount storage. "+err.Error())
+			}
+		}
+	}
+	for planName, planStorage := range plan.Storage {
+		found := false
+		for existingName := range state.Storage {
+			if existingName == planName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			err := r.client.StorageEnsureAndMount(ctx, appName, planName, planStorage.MountPath.ValueString())
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(planName), "Unable to mount storage", "Unable to mount storage. "+err.Error())
+			}
+		}
+	}
+	// --
+
+	// -- checks
+	stateCheckStatus := "enabled"
+	if state.Checks != nil {
+		stateCheckStatus = state.Checks.Status.ValueString()
+	}
+	planCheckStatus := "enabled"
+	if plan.Checks != nil {
+		planCheckStatus = plan.Checks.Status.ValueString()
+	}
+	if stateCheckStatus != planCheckStatus {
+		err := r.client.ChecksSet(ctx, appName, planCheckStatus)
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("checks"), "Unable to set checks", "Unable to set checks. "+err.Error())
+		}
+	}
+	// --
+
+	// -- domains
+	needToSetDomains := false
+	var domainsToSet []string
+	for _, existingDomain := range state.Domains {
+		found := false
+		for _, planDomain := range plan.Domains {
+			if planDomain == existingDomain {
+				found = true
+				break
+			}
+		}
+		if !found {
+			needToSetDomains = true
+		}
+	}
+	for _, planDomain := range plan.Domains {
+		found := false
+		for _, existingDomain := range state.Domains {
+			if planDomain == existingDomain {
+				found = true
+				break
+			}
+		}
+		if !found {
+			needToSetDomains = true
+		}
+		domainsToSet = append(domainsToSet, planDomain.ValueString())
+	}
+	if needToSetDomains {
+		var err error
+		if len(domainsToSet) == 0 {
+			err = r.client.DomainsClear(ctx, appName)
+		} else {
+			err = r.client.DomainsSet(ctx, appName, domainsToSet)
+		}
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to set domains", "Unable to set domains. "+err.Error())
+		}
+	}
+	// --
+
+	// -- proxy ports
+	needToSetProxyPorts := false
+	var proxyPortsToSet []dokkuclient.ProxyPort
+	for existingHostPort, existingProxyPort := range state.ProxyPorts {
+		found := false
+		for planHostPort, planProxyPort := range plan.ProxyPorts {
+			if planHostPort == existingHostPort {
+				if planProxyPort.Scheme.Equal(existingProxyPort.Scheme) && planProxyPort.ContainerPort.Equal(existingProxyPort.ContainerPort) {
+					found = true
+				}
+				break
+			}
+		}
+		if !found {
+			needToSetProxyPorts = true
+		}
+	}
+	for planHostPort, planProxyPort := range plan.ProxyPorts {
+		found := false
+		for existingHostPort, existingProxyPort := range state.ProxyPorts {
+			if planHostPort == existingHostPort {
+				if planProxyPort.Scheme.Equal(existingProxyPort.Scheme) && planProxyPort.ContainerPort.Equal(existingProxyPort.ContainerPort) {
+					found = true
+				}
+				break
+			}
+		}
+		if !found {
+			needToSetProxyPorts = true
+		}
+		proxyPortsToSet = append(proxyPortsToSet, dokkuclient.ProxyPort{
+			Scheme:        planProxyPort.Scheme.ValueString(),
+			HostPort:      planHostPort,
+			ContainerPort: planProxyPort.ContainerPort.ValueString(),
+		})
+	}
+	if needToSetProxyPorts {
+		var err error
+		if len(proxyPortsToSet) == 0 {
+			err = r.client.ProxyPortsClear(ctx, appName)
+		} else {
+			err = r.client.ProxyPortsSet(ctx, appName, proxyPortsToSet)
+		}
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to set proxy ports", "Unable to set proxy ports. "+err.Error())
+		}
+	}
+	// --
+
+	// -- docker options
+	for existingValue, existingDockerOption := range state.DockerOptions {
+		found := false
+		for planValue, planDockerOption := range plan.DockerOptions {
+			if existingValue == planValue {
+				found = true
+
+				if !existingDockerOption.Phase.Equal(planDockerOption.Phase) {
+					err := r.client.DockerOptionRemove(ctx, appName, formatDockerOptionsPhases(existingDockerOption.Phase), existingValue)
+					if err != nil {
+						resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(existingValue), "Unable to remove docker option", "Unable to remove docker option. "+err.Error())
+					}
+
+					err = r.client.DockerOptionAdd(ctx, appName, formatDockerOptionsPhases(planDockerOption.Phase), planValue)
+					if err != nil {
+						resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(existingValue), "Unable to add docker option", "Unable to add docker option. "+err.Error())
+					}
+				}
+
+				break
+			}
+		}
+		if !found {
+			err := r.client.DockerOptionRemove(ctx, appName, formatDockerOptionsPhases(existingDockerOption.Phase), existingValue)
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("docker_options").AtMapKey(existingValue), "Unable to remove docker option", "Unable to remove docker option. "+err.Error())
+			}
+		}
+	}
+	for planValue, planDockerOption := range plan.DockerOptions {
+		found := false
+		for existingValue := range state.DockerOptions {
+			if existingValue == planValue {
+				found = true
+				break
+			}
+		}
+		if !found {
+			err := r.client.DockerOptionAdd(ctx, appName, formatDockerOptionsPhases(planDockerOption.Phase), planValue)
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("docker_options").AtMapKey(planValue), "Unable to add docker option", "Unable to add docker option. "+err.Error())
+			}
+		}
+	}
+	// --
+
+	// -- networks
+	if state.Networks != nil {
+		if plan.Networks != nil {
+			if !plan.Networks.AttachPostCreate.Equal(state.Networks.AttachPostCreate) {
+				err := r.client.NetworkEnsureAndSetForApp(ctx, appName, "attach-post-create", plan.Networks.AttachPostCreate.ValueString())
+				if err != nil {
+					resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("attach_post_create"), "Unable to set network", "Unable to set network. "+err.Error())
+				}
+			}
+			if !plan.Networks.AttachPostDeploy.Equal(state.Networks.AttachPostDeploy) {
+				err := r.client.NetworkEnsureAndSetForApp(ctx, appName, "attach-post-deploy", plan.Networks.AttachPostDeploy.ValueString())
+				if err != nil {
+					resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("attach_post_deploy"), "Unable to set network", "Unable to set network. "+err.Error())
+				}
+			}
+			if !plan.Networks.InitialNetwork.Equal(state.Networks.InitialNetwork) {
+				err := r.client.NetworkEnsureAndSetForApp(ctx, appName, "initial-network", plan.Networks.InitialNetwork.ValueString())
+				if err != nil {
+					resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("initial_network"), "Unable to set network", "Unable to set network. "+err.Error())
+				}
+			}
+		} else {
+			if !state.Networks.AttachPostCreate.IsNull() {
+				err := r.client.NetworkUnsetForApp(ctx, appName, "attach-post-create")
+				if err != nil {
+					resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("attach_post_create"), "Unable to unset network", "Unable to unset network. "+err.Error())
+				}
+			}
+			if !state.Networks.AttachPostDeploy.IsNull() {
+				err := r.client.NetworkUnsetForApp(ctx, appName, "attach-post-deploy")
+				if err != nil {
+					resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("attach_post_deploy"), "Unable to unset network", "Unable to unset network. "+err.Error())
+				}
+			}
+			if !state.Networks.InitialNetwork.IsNull() {
+				err := r.client.NetworkUnsetForApp(ctx, appName, "initial-network")
+				if err != nil {
+					resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("initial_network"), "Unable to unset network", "Unable to unset network. "+err.Error())
+				}
+			}
+		}
+	} else {
+		if plan.Networks != nil {
+			if !plan.Networks.AttachPostCreate.IsNull() {
+				err := r.client.NetworkEnsureAndSetForApp(ctx, appName, "attach-post-create", plan.Networks.AttachPostCreate.ValueString())
+				if err != nil {
+					resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("attach_post_create"), "Unable to set network", "Unable to set network. "+err.Error())
+				}
+			}
+			if !plan.Networks.AttachPostDeploy.IsNull() {
+				err := r.client.NetworkEnsureAndSetForApp(ctx, appName, "attach-post-deploy", plan.Networks.AttachPostDeploy.ValueString())
+				if err != nil {
+					resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("attach_post_deploy"), "Unable to set network", "Unable to set network. "+err.Error())
+				}
+			}
+			if !plan.Networks.InitialNetwork.IsNull() {
+				err := r.client.NetworkEnsureAndSetForApp(ctx, appName, "initial-network", plan.Networks.InitialNetwork.ValueString())
+				if err != nil {
+					resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("initial_network"), "Unable to set network", "Unable to set network. "+err.Error())
+				}
+			}
+		}
+	}
+	// --
+
+	// -- deploy
+	if plan.Deploy != nil {
+		switch plan.Deploy.Type.ValueString() {
+		case "archive":
+			if state.Deploy == nil || !plan.Deploy.ArchiveType.Equal(state.Deploy.ArchiveType) || !plan.Deploy.ArchiveUrl.Equal(state.Deploy.ArchiveUrl) {
+				err := r.client.DeployFromArchive(ctx, appName, plan.Deploy.ArchiveType.ValueString(), plan.Deploy.ArchiveUrl.ValueString())
+				if err != nil {
+					resp.Diagnostics.AddError("Unable to deploy", "Unable to deploy. "+err.Error())
+				}
+				restartRequired = false
+			}
+		case "docker_image":
+			if state.Deploy == nil || !plan.Deploy.DockerImage.Equal(state.Deploy.DockerImage) {
+				err := r.client.DeployFromImage(ctx, appName, plan.Deploy.DockerImage.ValueString())
+				if err != nil {
+					resp.Diagnostics.AddError("Unable to deploy", "Unable to deploy. "+err.Error())
+				}
+				restartRequired = false
+			}
+		case "git_repository":
+			if state.Deploy == nil || !plan.Deploy.GitRepository.Equal(state.Deploy.GitRepository) || !plan.Deploy.GitRepositoryBuild.Equal(state.Deploy.GitRepositoryBuild) || !plan.Deploy.GitRepositoryRef.Equal(state.Deploy.GitRepositoryRef) {
+				err := r.client.DeploySyncRepository(ctx, appName, plan.Deploy.GitRepository.ValueString(), plan.Deploy.GitRepositoryBuild.ValueBool(), plan.Deploy.GitRepositoryRef.ValueString())
+				if err != nil {
+					resp.Diagnostics.AddError("Unable to deploy", "Unable to deploy. "+err.Error())
+				}
+				restartRequired = false
+			}
+		}
+	}
+	// --
+
+	if !resp.Diagnostics.HasError() && restartRequired {
+		err := r.client.ProcessRestart(ctx, appName)
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to restart process", "Unable to restart process. "+err.Error())
+		}
+	}
+
+	diags = resp.State.Set(ctx, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
@@ -166,4 +992,12 @@ func (r *appResource) Delete(ctx context.Context, req resource.DeleteRequest, re
 func (r *appResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Retrieve import ID and save to app_name attribute
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), req.ID)...)
+}
+
+func formatDockerOptionsPhases(phasesSet types.Set) (phases []string) {
+	for _, phase := range phasesSet.Elements() {
+		phaseStr := phase.(types.String)
+		phases = append(phases, phaseStr.ValueString())
+	}
+	return
 }

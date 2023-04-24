@@ -6,10 +6,10 @@ import (
 	"strings"
 )
 
-func (c *Client) DomainExists(ctx context.Context, appName string, domain string) (bool, error) {
+func (c *Client) DomainsExport(ctx context.Context, appName string) (res []string, err error) {
 	stdout, _, err := c.Run(ctx, fmt.Sprintf("domains:report %s", appName))
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	lines := strings.Split(stdout, "\n")
@@ -19,20 +19,26 @@ func (c *Client) DomainExists(ctx context.Context, appName string, domain string
 		if key == "Domains app vhosts" {
 			domainList := strings.TrimSpace(parts[1])
 			if domainList != "" {
-				for _, existingDomain := range strings.Split(domainList, " ") {
-					if existingDomain == domain {
-						return true, nil
-					}
-				}
+				res = append(res, strings.Split(domainList, " ")...)
 			}
 			break
 		}
 	}
-	return false, nil
+	return
 }
 
 func (c *Client) DomainAdd(ctx context.Context, appName string, domain string) error {
 	_, _, err := c.Run(ctx, fmt.Sprintf("domains:add %s %s", appName, domain))
+	return err
+}
+
+func (c *Client) DomainsSet(ctx context.Context, appName string, domains []string) error {
+	_, _, err := c.Run(ctx, fmt.Sprintf("domains:set %s %s", appName, strings.Join(domains, " ")))
+	return err
+}
+
+func (c *Client) DomainsClear(ctx context.Context, appName string) error {
+	_, _, err := c.Run(ctx, fmt.Sprintf("domains:clear %s", appName))
 	return err
 }
 

@@ -4,14 +4,23 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
-func (c *Client) ProxyPortExists(ctx context.Context, appName string, hostPort int64) (exists bool, scheme string, containerPort int64, err error) {
+type ProxyPort struct {
+	Scheme        string
+	HostPort      string
+	ContainerPort string
+}
+
+func (c *Client) ProxyPortsExport(ctx context.Context, appName string) (res []ProxyPort, err error) {
 	stdout, _, err := c.Run(ctx, fmt.Sprintf("proxy:ports %s", appName))
 	if err != nil {
-		return false, "", 0, err
+		if strings.Contains(stdout, "No port mappings configured for app") {
+			return nil, nil
+		}
+
+		return nil, err
 	}
 
 	lines := strings.Split(stdout, "\n")
@@ -21,23 +30,14 @@ func (c *Client) ProxyPortExists(ctx context.Context, appName string, hostPort i
 		hostPortStr := strings.TrimSpace(parts[1])
 		containerPortStr := strings.TrimSpace(parts[2])
 
-		existingHostPort, err := strconv.ParseInt(hostPortStr, 10, 64)
-		if err != nil {
-			// resp.Diagnostics.AddAttributeError(path.Root("host_port"), "Invalid value", "Invalid value. "+err.Error())
-			return false, "", 0, fmt.Errorf("Invalid host_port value: %w", err)
-		}
-		existingContainerPort, err := strconv.ParseInt(containerPortStr, 10, 64)
-		if err != nil {
-			// resp.Diagnostics.AddAttributeError(path.Root("container_port"), "Invalid value", "Invalid value. "+err.Error())
-			return false, "", 0, fmt.Errorf("Invalid container_port value: %w", err)
-		}
-
-		if existingHostPort == hostPort {
-			return true, scheme, existingContainerPort, nil
-		}
+		res = append(res, ProxyPort{
+			Scheme:        scheme,
+			HostPort:      hostPortStr,
+			ContainerPort: containerPortStr,
+		})
 	}
 
-	return false, "", 0, nil
+	return
 }
 
 func (c *Client) ProxyPortRemove(ctx context.Context, appName string, hostPort int64) error {
@@ -47,5 +47,19 @@ func (c *Client) ProxyPortRemove(ctx context.Context, appName string, hostPort i
 
 func (c *Client) ProxyPortAdd(ctx context.Context, appName string, scheme string, hostPort int64, containerPort int64) error {
 	_, _, err := c.Run(ctx, fmt.Sprintf("proxy:ports-add %s %s:%d:%d", appName, scheme, hostPort, containerPort))
+	return err
+}
+
+func (c *Client) ProxyPortsSet(ctx context.Context, appName string, proxyPorts []ProxyPort) error {
+	proxyPortsStr := ""
+	for _, p := range proxyPorts {
+		proxyPortsStr = fmt.Sprintf("%s %s:%s:%s", proxyPortsStr, p.Scheme, p.HostPort, p.ContainerPort)
+	}
+	_, _, err := c.Run(ctx, fmt.Sprintf("proxy:ports-set %s %s", appName, proxyPortsStr))
+	return err
+}
+
+func (c *Client) ProxyPortsClear(ctx context.Context, appName string) error {
+	_, _, err := c.Run(ctx, fmt.Sprintf("proxy:ports-clear %s", appName))
 	return err
 }

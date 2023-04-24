@@ -29,12 +29,12 @@ func (c *Client) DockerOptionExists(ctx context.Context, appName string, phase s
 	return false, nil
 }
 
-func (c *Client) DockerOptionAdd(ctx context.Context, appName string, phase string, value string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("docker-options:add %s %s %s", appName, phase, value))
+func (c *Client) DockerOptionAdd(ctx context.Context, appName string, phases []string, value string) error {
+	_, _, err := c.Run(ctx, fmt.Sprintf("docker-options:add %s %s %s", appName, strings.Join(phases, ","), value))
 	return err
 }
 
-func (c *Client) DockerOptionRemove(ctx context.Context, appName string, phase string, value string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("docker-options:remove %s %s %s", appName, phase, value))
+func (c *Client) DockerOptionRemove(ctx context.Context, appName string, phases []string, value string) error {
+	_, _, err := c.Run(ctx, fmt.Sprintf("docker-options:remove %s %s %s", appName, strings.Join(phases, ","), value))
 	return err
 }

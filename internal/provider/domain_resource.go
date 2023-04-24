@@ -2,8 +2,6 @@ package provider
 
 import (
 	"context"
-	"regexp"
-	"strings"
 
 	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
 
@@ -32,8 +30,7 @@ type domainResource struct {
 }
 
 type domainResourceModel struct {
-	AppName types.String `tfsdk:"app_name"`
-	Domain  types.String `tfsdk:"domain"`
+	Domain types.String `tfsdk:"domain"`
 }
 
 // Metadata returns the resource type name.
@@ -55,15 +52,6 @@ func (r *domainResource) Configure(_ context.Context, req resource.ConfigureRequ
 func (r *domainResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"app_name": schema.StringAttribute{
-				Required: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-z][a-z0-9-]*$`), "invalid app_name"),
-				},
-			},
 			"domain": schema.StringAttribute{
 				Required: true,
 				PlanModifiers: []planmodifier.String{
@@ -88,9 +76,9 @@ func (r *domainResource) Read(ctx context.Context, req resource.ReadRequest, res
 	}
 
 	// Read domains
-	exists, err := r.client.DomainExists(ctx, state.AppName.ValueString(), state.Domain.ValueString())
+	exists, err := r.client.GlobalDomainExists(ctx, state.Domain.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check domain existence", "Unable to check domain existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check global domain existence", "Unable to check global domain existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -116,21 +104,21 @@ func (r *domainResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	// Read domain
-	exists, err := r.client.DomainExists(ctx, plan.AppName.ValueString(), plan.Domain.ValueString())
+	// Read domains
+	exists, err := r.client.GlobalDomainExists(ctx, plan.Domain.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check domain existence", "Unable to check domain existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check global domain existence", "Unable to check global domain existence. "+err.Error())
 		return
 	}
 	if exists {
-		resp.Diagnostics.AddAttributeError(path.Root("domain"), "This domain already set for app", "This domain already set for app")
+		resp.Diagnostics.AddAttributeError(path.Root("domain"), "This global domain is already set", "This global domain is already set")
 		return
 	}
 
 	// Add domain
-	err = r.client.DomainAdd(ctx, plan.AppName.ValueString(), plan.Domain.ValueString())
+	err = r.client.GlobalDomainAdd(ctx, plan.Domain.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to add domain", "Unable to add domain. "+err.Error())
+		resp.Diagnostics.AddError("Unable to add global domain", "Unable to add global domain. "+err.Error())
 		return
 	}
 
@@ -158,9 +146,9 @@ func (r *domainResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	}
 
 	// Read domains
-	exists, err := r.client.DomainExists(ctx, state.AppName.ValueString(), state.Domain.ValueString())
+	exists, err := r.client.GlobalDomainExists(ctx, state.Domain.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check domain existence", "Unable to check domain existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check global domain existence", "Unable to check global domain existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -168,15 +156,14 @@ func (r *domainResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	}
 
 	// Clear domains
-	err = r.client.DomainRemove(ctx, state.AppName.ValueString(), state.Domain.ValueString())
+	err = r.client.GlobalDomainRemove(ctx, state.Domain.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to remove domain", "Unable to remove domain. "+err.Error())
+		resp.Diagnostics.AddError("Unable to remove global domain", "Unable to remove global domain. "+err.Error())
 		return
 	}
 }
 
 func (r *domainResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts := strings.Split(req.ID, " ")
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("domain"), parts[1])...)
+	// Retrieve import ID and save to app_name attribute
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("domain"), req.ID)...)
 }

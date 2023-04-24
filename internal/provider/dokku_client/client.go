@@ -38,7 +38,7 @@ func (c *Client) Run(ctx context.Context, cmd string) (stdout string, status int
 		cmdSafe = strings.Replace(cmdSafe, toReplace, "*******", -1)
 	}
 
-	tflog.Debug(ctx, "SSH cmd", map[string]any{"cmd": cmdSafe})
+	tflog.Error(ctx, "SSH cmd", map[string]any{"cmd": cmdSafe})
 
 	stdoutRaw, err := c.client.RunContext(ctx, "--quiet "+cmd)
 
@@ -50,7 +50,7 @@ func (c *Client) Run(ctx context.Context, cmd string) (stdout string, status int
 
 	if err != nil {
 		status = parseStatusCode(err.Error())
-		tflog.Debug(ctx, "SSH error", map[string]any{"status": status, "stdout": stdout})
+		tflog.Error(ctx, "SSH error", map[string]any{"status": status, "stdout": stdout})
 		err = fmt.Errorf("Error [%d]: %s", status, stdout)
 	}
 	return

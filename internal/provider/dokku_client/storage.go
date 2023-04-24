@@ -8,12 +8,13 @@ import (
 
 const hostStoragePrefix = "/var/lib/dokku/data/storage/"
 
-func (c *Client) StorageExists(ctx context.Context, appName string, name string) (exists bool, mountPath string, err error) {
+func (c *Client) StorageExport(ctx context.Context, appName string) (res map[string]string, err error) {
 	stdout, _, err := c.Run(ctx, fmt.Sprintf("storage:list %s", appName))
 	if err != nil {
-		return false, "", err
+		return nil, err
 	}
 
+	res = make(map[string]string)
 	lines := strings.Split(stdout, "\n")
 	for _, line := range lines {
 		if strings.TrimSpace(line) == "" {
@@ -24,13 +25,12 @@ func (c *Client) StorageExists(ctx context.Context, appName string, name string)
 		if hostpath[:len(hostStoragePrefix)] != hostStoragePrefix {
 			continue
 		}
-		if name != hostpath[len(hostStoragePrefix):] {
-			continue
-		}
-		return true, parts[1], nil
+		res[hostpath[len(hostStoragePrefix):]] = parts[1]
 	}
-
-	return false, "", nil
+	if len(res) == 0 {
+		res = nil
+	}
+	return
 }
 
 func (c *Client) StorageEnsure(ctx context.Context, name string) error {
@@ -45,5 +45,14 @@ func (c *Client) StorageMount(ctx context.Context, appName string, name string, 
 
 func (c *Client) StorageUnmount(ctx context.Context, appName string, name string, mountPath string) error {
 	_, _, err := c.Run(ctx, fmt.Sprintf("storage:unmount %s %s:%s", appName, hostStoragePrefix+name, mountPath))
+	return err
+}
+
+func (c *Client) StorageEnsureAndMount(ctx context.Context, appName string, name string, mountPath string) error {
+	_, _, err := c.Run(ctx, fmt.Sprintf("storage:ensure-directory %s", name))
+	if err != nil {
+		return err
+	}
+	_, _, err = c.Run(ctx, fmt.Sprintf("storage:mount %s %s:%s", appName, hostStoragePrefix+name, mountPath))
 	return err
 }

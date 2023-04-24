@@ -268,19 +268,11 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 func (p *dokkuProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewAppResource,
-		NewChecksResource,
-		NewConfigResource,
-		NewDeployResource,
-		NewDockerOptionResource,
 		NewDomainResource,
-		NewGlobalDomainResource,
 		NewLetsencryptResource,
-		NewNetworkResource,
 		NewPluginResource,
 		NewPostgresLinkResource,
 		NewPostgresResource,
-		NewProxyPortsResource,
-		NewStorageResource,
 	}
 }
 
@@ -289,12 +281,9 @@ func (p *dokkuProvider) DataSources(ctx context.Context) []func() datasource.Dat
 }
 
 func verifyHost(host string, remote net.Addr, key ssh.PublicKey) error {
-
-	//
 	// If you want to connect to new hosts.
 	// here your should check new connections public keys
 	// if the key not trusted you shuld return an error
-	//
 
 	// hostFound: is host in known hosts file.
 	// err: error if key not in known hosts file OR host in known hosts file but key changed!
