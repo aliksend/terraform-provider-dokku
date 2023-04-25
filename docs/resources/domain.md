@@ -17,7 +17,6 @@ description: |-
 
 ### Required
 
-- `app_name` (String)
 - `domain` (String)
 
 

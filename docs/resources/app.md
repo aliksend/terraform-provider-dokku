@@ -25,6 +25,76 @@ resource "dokku_app" "demo" {
 
 - `app_name` (String)
 
+### Optional
+
+- `checks` (Attributes) (see [below for nested schema](#nestedatt--checks))
+- `config` (Map of String)
+- `deploy` (Attributes) (see [below for nested schema](#nestedatt--deploy))
+- `docker_options` (Attributes Map) (see [below for nested schema](#nestedatt--docker_options))
+- `domains` (Set of String)
+- `networks` (Attributes) (see [below for nested schema](#nestedatt--networks))
+- `proxy_ports` (Attributes Map) (see [below for nested schema](#nestedatt--proxy_ports))
+- `storage` (Attributes Map) (see [below for nested schema](#nestedatt--storage))
+
+<a id="nestedatt--checks"></a>
+### Nested Schema for `checks`
+
+Required:
+
+- `status` (String)
+
+
+<a id="nestedatt--deploy"></a>
+### Nested Schema for `deploy`
+
+Required:
+
+- `type` (String)
+
+Optional:
+
+- `archive_type` (String)
+- `archive_url` (String)
+- `docker_image` (String)
+- `git_repository` (String)
+- `git_repository_build` (Boolean)
+- `git_repository_ref` (String)
+
+
+<a id="nestedatt--docker_options"></a>
+### Nested Schema for `docker_options`
+
+Required:
+
+- `phase` (Set of String)
+
+
+<a id="nestedatt--networks"></a>
+### Nested Schema for `networks`
+
+Optional:
+
+- `attach_post_create` (String)
+- `attach_post_deploy` (String)
+- `initial_network` (String)
+
+
+<a id="nestedatt--proxy_ports"></a>
+### Nested Schema for `proxy_ports`
+
+Required:
+
+- `container_port` (String)
+- `scheme` (String)
+
+
+<a id="nestedatt--storage"></a>
+### Nested Schema for `storage`
+
+Required:
+
+- `mount_path` (String)
+
 ## Import
 
 Import is supported using the following syntax:
