@@ -20,9 +20,8 @@ func New(client *goph.Client, logSshCommands bool) *Client {
 }
 
 type Client struct {
-	client           *goph.Client
-	logSshCommands   bool
-	sensitiveStrings []string
+	client         *goph.Client
+	logSshCommands bool
 }
 
 var mutex = &sync.Mutex{}
@@ -30,13 +29,13 @@ var mutex = &sync.Mutex{}
 // Run runs any ssh command
 //
 // Deprecated: Use specific methods.
-func (c *Client) Run(ctx context.Context, cmd string) (stdout string, status int, err error) {
+func (c *Client) Run(ctx context.Context, cmd string, sensitiveStrings ...string) (stdout string, status int, err error) {
 	// disabling concurrent calls
 	mutex.Lock()
 	defer mutex.Unlock()
 
 	cmdSafe := cmd
-	for _, toReplace := range c.sensitiveStrings {
+	for _, toReplace := range sensitiveStrings {
 		cmdSafe = strings.Replace(cmdSafe, toReplace, "*******", -1)
 	}
 
@@ -49,7 +48,7 @@ func (c *Client) Run(ctx context.Context, cmd string) (stdout string, status int
 	stdoutRaw, err := c.client.RunContext(ctx, "--quiet "+cmd)
 
 	stdout = string(stdoutRaw)
-	for _, toReplace := range c.sensitiveStrings {
+	for _, toReplace := range sensitiveStrings {
 		stdout = strings.Replace(stdout, toReplace, "*******", -1)
 	}
 	stdout = strings.TrimSuffix(stdout, "\n")

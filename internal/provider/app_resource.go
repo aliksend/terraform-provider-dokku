@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"net/url"
 	"regexp"
 
 	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
@@ -71,6 +72,8 @@ type networkModel struct {
 
 type deployModel struct {
 	Type               types.String `tfsdk:"type"`
+	Login              types.String `tfsdk:"login"`
+	Password           types.String `tfsdk:"password"`
 	DockerImage        types.String `tfsdk:"docker_image"`
 	GitRepository      types.String `tfsdk:"git_repository"`
 	GitRepositoryBuild types.Bool   `tfsdk:"git_repository_build"`
@@ -218,6 +221,20 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 						Required: true,
 						Validators: []validator.String{
 							stringvalidator.OneOf("archive", "docker_image", "git_repository"),
+						},
+					},
+					"login": schema.StringAttribute{
+						Optional: true,
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+							stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("password")),
+						},
+					},
+					"password": schema.StringAttribute{
+						Optional: true,
+						Validators: []validator.String{
+							stringvalidator.LengthAtLeast(1),
+							stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("login")),
 						},
 					},
 					"docker_image": schema.StringAttribute{
@@ -562,12 +579,27 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 		}
 	}
 
-	if plan.Deploy != nil {
+	if plan.Deploy != nil && !resp.Diagnostics.HasError() {
+		var err error
 		switch plan.Deploy.Type.ValueString() {
 		case "archive":
 			err = r.client.DeployFromArchive(ctx, plan.AppName.ValueString(), plan.Deploy.ArchiveType.ValueString(), plan.Deploy.ArchiveUrl.ValueString())
 		case "docker_image":
-			err = r.client.DeployFromImage(ctx, plan.AppName.ValueString(), plan.Deploy.DockerImage.ValueString())
+			if !plan.Deploy.Login.IsNull() && !plan.Deploy.Password.IsNull() {
+				u, err := url.Parse("https://" + plan.Deploy.DockerImage.ValueString())
+				if err != nil {
+					resp.Diagnostics.AddAttributeError(path.Root("deploy").AtName("docker_image"), "Unable to parse url", "Unable to parse url. "+err.Error())
+				} else {
+					err = r.client.RegistryLogin(ctx, u.Host, plan.Deploy.Login.ValueString(), plan.Deploy.Password.ValueString())
+					if err != nil {
+						resp.Diagnostics.AddAttributeError(path.Root("deploy"), "Unable to login into reqistry", "Unable to login into reqistry. "+err.Error())
+					}
+				}
+			}
+
+			if !resp.Diagnostics.HasError() {
+				err = r.client.DeployFromImage(ctx, plan.AppName.ValueString(), plan.Deploy.DockerImage.ValueString())
+			}
 		case "git_repository":
 			err = r.client.DeploySyncRepository(ctx, plan.AppName.ValueString(), plan.Deploy.GitRepository.ValueString(), plan.Deploy.GitRepositoryBuild.ValueBool(), plan.Deploy.GitRepositoryRef.ValueString())
 		}
