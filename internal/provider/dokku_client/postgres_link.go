@@ -12,6 +12,9 @@ func (c *Client) PostgresLinkExists(ctx context.Context, serviceName string, app
 		if strings.Contains(stdout, fmt.Sprintf("Service %s is not linked to %s", serviceName, appName)) {
 			return false, nil
 		}
+		if strings.Contains(stdout, fmt.Sprintf("App %s does not exist", appName)) {
+			return false, nil
+		}
 		return false, err
 	}
 	return true, nil

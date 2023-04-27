@@ -20,6 +20,20 @@ go install
 ```
 ## Using the provider
 
+1. [Set up dokku](https://dokku.com/docs/getting-started/installation/#installing-the-latest-stable-version) or [Upgrade dokku](https://dokku.com/docs/getting-started/upgrading/) on installations with prebuilt dokku (like on DO)
+
+2. Set up SSH keys
+```bash
+# ON LOCAL PC
+# Set up publickey auth
+ssh-copy-id user@IP
+
+# ON VPS
+# Add key to dokku
+# You can change "admin" to any preferred username, describing who you are related to this server instance
+cat ~/.ssh/authorized_keys | dokku ssh-keys:add admin
+```
+
 [Documentation](docs/index.md)
 
 ## Developing the Provider

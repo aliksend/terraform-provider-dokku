@@ -121,7 +121,7 @@ func (r *pluginResource) Create(ctx context.Context, req resource.CreateRequest,
 		resp.Diagnostics.AddError("Unable to read plugin", "Unable to read plugin. "+err.Error())
 	}
 	if !found {
-		resp.Diagnostics.AddError("Plugin not installed", fmt.Sprintf("Plugin not installed. Run `sudo plugin:install %s %s` manually.", plan.URL.ValueString(), plan.Name.ValueString()))
+		resp.Diagnostics.AddError("Plugin not installed", fmt.Sprintf("Plugin not installed. Run `sudo dokku plugin:install %s %s` manually.", plan.URL.ValueString(), plan.Name.ValueString()))
 		return
 	}
 

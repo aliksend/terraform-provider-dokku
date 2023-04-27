@@ -954,6 +954,9 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 			resp.Diagnostics.AddError("Unable to restart process", "Unable to restart process. "+err.Error())
 		}
 	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)

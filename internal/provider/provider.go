@@ -44,6 +44,7 @@ type dokkuProviderModel struct {
 	User                  types.String `tfsdk:"ssh_user"`
 	Cert                  types.String `tfsdk:"ssh_cert"`
 	FailOnUntestedVersion types.Bool   `tfsdk:"fail_on_untested_version"`
+	LogSshCommands        types.Bool   `tfsdk:"log_ssh_commands"`
 }
 
 func (p *dokkuProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -68,6 +69,10 @@ func (p *dokkuProvider) Schema(ctx context.Context, req provider.SchemaRequest, 
 			},
 			"fail_on_untested_version": schema.BoolAttribute{
 				Optional: true,
+			},
+			"log_ssh_commands": schema.BoolAttribute{
+				Description: "Print SSH commands with ERROR verbose",
+				Optional:    true,
 			},
 		},
 	}
@@ -126,6 +131,7 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	username := "dokku"
 	certPath := "~/.ssh/id_rsa"
 	failOnUntestedVersion := true
+	logSshCommands := false
 
 	if !config.Host.IsNull() {
 		host = config.Host.ValueString()
@@ -182,6 +188,9 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	}
 	if !config.FailOnUntestedVersion.IsNull() {
 		failOnUntestedVersion = config.FailOnUntestedVersion.ValueBool()
+	}
+	if !config.LogSshCommands.IsNull() {
+		logSshCommands = config.LogSshCommands.ValueBool()
 	}
 
 	usr, _ := user.Current()
@@ -257,7 +266,7 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		return
 	}
 
-	dokkuClient := dokkuclient.New(client)
+	dokkuClient := dokkuclient.New(client, logSshCommands)
 	stdout, status, _ := dokkuClient.Run(ctx, "version")
 
 	// Check for 127 status code... suggests that we're not authenticating
@@ -275,7 +284,7 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	hostVersion, err := semver.Parse(found)
 
-	testedVersions := ">=0.24.0 <0.30.0"
+	testedVersions := ">=0.24.0 <=0.30.3"
 	testedErrMsg := fmt.Sprintf("This provider has not been tested against Dokku version %s. Tested version range: %s", found, testedVersions)
 
 	if err == nil {

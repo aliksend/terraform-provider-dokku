@@ -12,14 +12,16 @@ import (
 	"github.com/melbahja/goph"
 )
 
-func New(client *goph.Client) *Client {
+func New(client *goph.Client, logSshCommands bool) *Client {
 	return &Client{
-		client: client,
+		client:         client,
+		logSshCommands: logSshCommands,
 	}
 }
 
 type Client struct {
 	client           *goph.Client
+	logSshCommands   bool
 	sensitiveStrings []string
 }
 
@@ -38,7 +40,11 @@ func (c *Client) Run(ctx context.Context, cmd string) (stdout string, status int
 		cmdSafe = strings.Replace(cmdSafe, toReplace, "*******", -1)
 	}
 
-	tflog.Error(ctx, "SSH cmd", map[string]any{"cmd": cmdSafe})
+	if c.logSshCommands {
+		tflog.Error(ctx, "SSH cmd", map[string]any{"cmd": cmdSafe})
+	} else {
+		tflog.Debug(ctx, "SSH cmd", map[string]any{"cmd": cmdSafe})
+	}
 
 	stdoutRaw, err := c.client.RunContext(ctx, "--quiet "+cmd)
 
@@ -50,7 +56,7 @@ func (c *Client) Run(ctx context.Context, cmd string) (stdout string, status int
 
 	if err != nil {
 		status = parseStatusCode(err.Error())
-		tflog.Error(ctx, "SSH error", map[string]any{"status": status, "stdout": stdout})
+		tflog.Debug(ctx, "SSH error", map[string]any{"status": status, "stdout": stdout})
 		err = fmt.Errorf("Error [%d]: %s", status, stdout)
 	}
 	return
