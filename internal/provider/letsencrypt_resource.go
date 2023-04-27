@@ -32,6 +32,7 @@ type letsencryptResource struct {
 
 type letsencryptResourceModel struct {
 	AppName types.String `tfsdk:"app_name"`
+	Email   types.String `tfsdk:"email"`
 }
 
 // Metadata returns the resource type name.
@@ -60,6 +61,12 @@ func (r *letsencryptResource) Schema(_ context.Context, _ resource.SchemaRequest
 				},
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-z][a-z0-9-]*$`), "invalid app_name"),
+				},
+			},
+			"email": schema.StringAttribute{
+				Required: true,
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
 				},
 			},
 		},
@@ -116,6 +123,13 @@ func (r *letsencryptResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
+	// Set letsencrypt email
+	err = r.client.LetsencryptSetEmail(ctx, plan.AppName.ValueString(), plan.Email.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to set letsencrypt email", "Unable to set letsencrypt email. "+err.Error())
+		return
+	}
+
 	// Enable letsencrypt
 	err = r.client.LetsencryptEnable(ctx, plan.AppName.ValueString())
 	if err != nil {
@@ -140,7 +154,36 @@ func (r *letsencryptResource) Create(ctx context.Context, req resource.CreateReq
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *letsencryptResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
+	// Retrieve values from plan
+	var plan letsencryptResourceModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	var state letsencryptResourceModel
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if plan.AppName.ValueString() != state.AppName.ValueString() {
+		resp.Diagnostics.AddAttributeError(path.Root("app_name"), "App name can't be changed", "App name can't be changed")
+		return
+	}
+
+	err := r.client.LetsencryptSetEmail(ctx, plan.AppName.ValueString(), plan.Email.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to set letsencrypt email", "Unable to set letsencrypt email. "+err.Error())
+		return
+	}
+
+	diags = resp.State.Set(ctx, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 // Delete deletes the resource and removes the Terraform state on success.

@@ -23,6 +23,11 @@ func (c *Client) LetsencryptIsEnabled(ctx context.Context, appName string) (bool
 	return false, nil
 }
 
+func (c *Client) LetsencryptSetEmail(ctx context.Context, appName string, email string) error {
+	_, _, err := c.Run(ctx, fmt.Sprintf("letsencrypt:set %s email %s", appName, email))
+	return err
+}
+
 func (c *Client) LetsencryptEnable(ctx context.Context, appName string) error {
 	_, _, err := c.Run(ctx, fmt.Sprintf("letsencrypt:enable %s", appName))
 	return err
