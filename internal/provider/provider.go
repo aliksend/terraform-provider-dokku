@@ -153,7 +153,7 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 				resp.Diagnostics.AddAttributeError(path.Root("ssh_cert"), "Unable to create temp file", "Unable to create temp file. "+err.Error())
 				return
 			}
-			defer os.Remove(certPath)
+			tflog.Debug(ctx, "Save ssh_cert from env var to tmp file", map[string]any{"certPath": certPath})
 		case "raw":
 			var err error
 			certPath, err = tmpFileWithValue(parts[1])
@@ -161,7 +161,7 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 				resp.Diagnostics.AddAttributeError(path.Root("ssh_cert"), "Unable to create temp file", "Unable to create temp file. "+err.Error())
 				return
 			}
-			defer os.Remove(certPath)
+			tflog.Debug(ctx, "Save ssh_cert from raw string to tmp file", map[string]any{"certPath": certPath})
 		case "file":
 			certPath = parts[1]
 		default:
@@ -174,7 +174,7 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 					resp.Diagnostics.AddAttributeError(path.Root("ssh_cert"), "Unable to create temp file", "Unable to create temp file. "+err.Error())
 					return
 				}
-				defer os.Remove(certPath)
+				tflog.Debug(ctx, "Save ssh_cert from env var to tmp file", map[string]any{"certPath": certPath})
 			} else if cert[0] == '-' {
 				var err error
 				certPath, err = tmpFileWithValue(cert)
@@ -182,7 +182,7 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 					resp.Diagnostics.AddAttributeError(path.Root("ssh_cert"), "Unable to create temp file", "Unable to create temp file. "+err.Error())
 					return
 				}
-				defer os.Remove(certPath)
+				tflog.Debug(ctx, "Save ssh_cert from raw string to tmp file", map[string]any{"certPath": certPath})
 			}
 		}
 	}
@@ -193,10 +193,14 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		logSshCommands = config.LogSshCommands.ValueBool()
 	}
 
-	usr, _ := user.Current()
-	dir := usr.HomeDir
-	if strings.HasPrefix(certPath, "~/") {
-		certPath = filepath.Join(dir, certPath[2:])
+	usr, err := user.Current()
+	if err == nil {
+		dir := usr.HomeDir
+		if strings.HasPrefix(certPath, "~/") {
+			certPath = filepath.Join(dir, certPath[2:])
+		}
+
+		_ = os.MkdirAll(filepath.Join(usr.HomeDir, ".ssh"), os.ModePerm)
 	}
 
 	// If any of the expected configurations are missing, return
