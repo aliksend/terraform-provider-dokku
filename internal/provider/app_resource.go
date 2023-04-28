@@ -231,7 +231,8 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 						},
 					},
 					"password": schema.StringAttribute{
-						Optional: true,
+						Optional:  true,
+						Sensitive: true,
 						Validators: []validator.String{
 							stringvalidator.LengthAtLeast(1),
 							stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("login")),
