@@ -22,6 +22,171 @@ cat ~/.ssh/authorized_keys | dokku ssh-keys:add admin
 
 [Documentation](docs/index.md)
 
+### Deploy using push from git repository (simplest way)
+
+Example .gitlab-ci.yml
+```yml
+stages:
+  - terraform
+  - deploy
+
+variables:
+  SSH_HOST: __YOUR_HOST__
+  APP_NAME: __YOUR_APP__
+  TF_STATE_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/main"
+
+terraform:
+  image:
+    name: hashicorp/terraform:light
+    entrypoint: ['']
+  stage: terraform
+  only:
+    - master
+  script:
+    - terraform version
+    - terraform init
+      -reconfigure
+      -backend-config="address=${TF_STATE_ADDRESS}"
+      -backend-config="lock_address=${TF_STATE_ADDRESS}/lock"
+      -backend-config="unlock_address=${TF_STATE_ADDRESS}/lock"
+      -backend-config="username=gitlab-ci-token"
+      -backend-config="password=$CI_JOB_TOKEN"
+      -backend-config="lock_method=POST"
+      -backend-config="unlock_method=DELETE"
+      -backend-config="retry_wait_min=5"
+    - terraform apply
+      -input=false
+      -auto-approve
+      -var ssh_cert="$SSH_PRIVATE_KEY"
+
+dokku_deploy:
+  image: ilyasemenov/gitlab-ci-git-push
+  stage: deploy
+  only:
+    - master
+  script:
+    - git-push ssh://dokku@$SSH_HOST/$APP_NAME
+```
+
+You need to have gitlab variable SSH_PRIVATE_KEY with private key, added in step 2.
+
+Example terraform configuration
+```terraform
+variable "ssh_cert" {
+  type = string
+  description = "SSH cert"
+  default = "~/.ssh/id_rsa"
+}
+
+terraform {
+  required_providers {
+    dokku = {
+      source = "registry.terraform.io/aliksend/dokku"
+    }
+  }
+
+  backend "http" {}
+}
+
+provider "dokku" {
+  ...
+  ssh_cert = var.ssh_cert
+}
+
+resource "dokku_app" "yourname" {
+  ...
+
+  deploy = null
+}
+```
+
+### Deploy using sync with git repository
+
+Example .gitlab-ci.yml
+```yml
+stages:
+  - deploy
+
+variables:
+  TF_STATE_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/main"
+
+dokku_deploy:
+  image:
+    name: hashicorp/terraform:light
+    entrypoint: ['']
+  stage: deploy
+  only:
+    - master
+  script:
+    - terraform version
+    - terraform init
+      -reconfigure
+      -backend-config="address=${TF_STATE_ADDRESS}"
+      -backend-config="lock_address=${TF_STATE_ADDRESS}/lock"
+      -backend-config="unlock_address=${TF_STATE_ADDRESS}/lock"
+      -backend-config="username=gitlab-ci-token"
+      -backend-config="password=$CI_JOB_TOKEN"
+      -backend-config="lock_method=POST"
+      -backend-config="unlock_method=DELETE"
+      -backend-config="retry_wait_min=5"
+    - terraform apply
+      -input=false
+      -auto-approve
+      -var ssh_cert="$SSH_PRIVATE_KEY"
+      -var git_repository="$CI_REPOSITORY_URL"
+      -var git_repository_ref="$CI_COMMIT_SHA"
+```
+
+You need to have gitlab variable SSH_PRIVATE_KEY with private key, added in step 2.
+
+As long as built-in gitlab env var CI_REPOSITORY_URL contains credentials you don't need to provide it explicitly.
+
+Example terraform configuration
+```terraform
+variable "ssh_cert" {
+  type = string
+  description = "SSH cert"
+  default = "~/.ssh/id_rsa"
+}
+
+variable "git_repository" {
+  type = string
+  description = "Git repository to sync with"
+}
+
+variable "git_repository_ref" {
+  type = string
+  description = "Ref in git repository to sync with"
+}
+
+terraform {
+  required_providers {
+    dokku = {
+      source = "registry.terraform.io/aliksend/dokku"
+    }
+  }
+
+  backend "http" {}
+}
+
+provider "dokku" {
+  ...
+  ssh_cert = var.ssh_cert
+}
+
+resource "dokku_app" "yourname" {
+  ...
+
+  deploy = {
+    type = "git_repository"
+    git_repository = var.git_repository
+    git_repository_ref = var.git_repository_ref
+  }
+}
+```
+
+### Deploy using docker image
+
 Example .gitlabci.yml
 ```yml
 stages:
@@ -29,7 +194,7 @@ stages:
   - deploy
 
 variables:
-  TF_STATE_ADDRESS: "https://gitlab.com/api/v4/projects/${CI_PROJECT_ID}/terraform/state/main"
+  TF_STATE_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/main"
 
 build:
   image: docker:stable
@@ -47,7 +212,6 @@ build:
     - docker build --cache-from $CI_REGISTRY_IMAGE:latest --tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA --tag $CI_REGISTRY_IMAGE:latest .
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
     - docker push $CI_REGISTRY_IMAGE:latest
-
 
 dokku_deploy:
   image:
@@ -82,15 +246,15 @@ You need to have gitlab variable SSH_PRIVATE_KEY with private key, added in step
 
 Example terraform configuration
 ```terraform
-variable "docker_image" {
-  type = string
-  description = "Docker image to deploy"
-}
-
 variable "ssh_cert" {
   type = string
   description = "SSH cert"
   default = "~/.ssh/id_rsa"
+}
+
+variable "docker_image" {
+  type = string
+  description = "Docker image to deploy"
 }
 
 variable "docker_image_registry_login" {
@@ -150,5 +314,5 @@ To generate or update documentation, run `go generate ./...`.
 1. Build the provider using the Go `install` command:
 
 ```shell
-go install
+go install .
 ```
