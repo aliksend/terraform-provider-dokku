@@ -36,11 +36,7 @@ func (c *Client) DeployFromImage(ctx context.Context, appName string, dockerImag
 	return nil
 }
 
-func (c *Client) DeploySyncRepository(ctx context.Context, appName string, repositoryUrl string, build bool, ref string) error {
-	buildStr := ""
-	if build {
-		buildStr = "--build"
-	}
-	_, _, err := c.Run(ctx, fmt.Sprintf("git:sync %s %s %s %s", buildStr, appName, repositoryUrl, ref))
+func (c *Client) DeploySyncRepository(ctx context.Context, appName string, repositoryUrl string, ref string) error {
+	_, _, err := c.Run(ctx, fmt.Sprintf("git:sync --build %s %s %s", appName, repositoryUrl, ref))
 	return err
 }

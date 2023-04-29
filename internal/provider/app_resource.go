@@ -72,15 +72,14 @@ type networkModel struct {
 }
 
 type deployModel struct {
-	Type               types.String `tfsdk:"type"`
-	Login              types.String `tfsdk:"login"`
-	Password           types.String `tfsdk:"password"`
-	DockerImage        types.String `tfsdk:"docker_image"`
-	GitRepository      types.String `tfsdk:"git_repository"`
-	GitRepositoryBuild types.Bool   `tfsdk:"git_repository_build"`
-	GitRepositoryRef   types.String `tfsdk:"git_repository_ref"`
-	ArchiveType        types.String `tfsdk:"archive_type"`
-	ArchiveUrl         types.String `tfsdk:"archive_url"`
+	Type             types.String `tfsdk:"type"`
+	Login            types.String `tfsdk:"login"`
+	Password         types.String `tfsdk:"password"`
+	DockerImage      types.String `tfsdk:"docker_image"`
+	GitRepository    types.String `tfsdk:"git_repository"`
+	GitRepositoryRef types.String `tfsdk:"git_repository_ref"`
+	ArchiveType      types.String `tfsdk:"archive_type"`
+	ArchiveUrl       types.String `tfsdk:"archive_url"`
 }
 
 // Metadata returns the resource type name.
@@ -250,10 +249,6 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 						Validators: []validator.String{
 							stringvalidator.LengthAtLeast(1),
 						},
-					},
-					"git_repository_build": schema.BoolAttribute{
-						Optional: true,
-						// Default: booldefault.StaticBool(false),
 					},
 					"git_repository_ref": schema.StringAttribute{
 						Optional: true,
@@ -1007,7 +1002,18 @@ func (r *appResource) deploy(ctx context.Context, appName string, deployModel de
 
 		err = r.client.DeployFromImage(ctx, appName, deployModel.DockerImage.ValueString())
 	case "git_repository":
-		err = r.client.DeploySyncRepository(ctx, appName, deployModel.GitRepository.ValueString(), deployModel.GitRepositoryBuild.ValueBool(), deployModel.GitRepositoryRef.ValueString())
+		if !deployModel.Login.IsNull() && !deployModel.Password.IsNull() {
+			u, err := url.Parse(deployModel.GitRepository.ValueString())
+			if err != nil {
+				return fmt.Errorf("unable to parse url: %w", err)
+			}
+			err = r.client.GitAuth(ctx, u.Host, deployModel.Login.ValueString(), deployModel.Password.ValueString())
+			if err != nil {
+				return fmt.Errorf("unable to login to git: %w", err)
+			}
+		}
+
+		err = r.client.DeploySyncRepository(ctx, appName, deployModel.GitRepository.ValueString(), deployModel.GitRepositoryRef.ValueString())
 	default:
 		err = fmt.Errorf("Unknown deploy type %s", deployModel.Type.ValueString())
 	}
