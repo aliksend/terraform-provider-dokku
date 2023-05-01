@@ -22,10 +22,11 @@ func (c *Client) StorageExport(ctx context.Context, appName string) (res map[str
 		}
 		parts := strings.Split(line, ":")
 		hostpath := strings.TrimSpace(parts[0])
-		if hostpath[:len(hostStoragePrefix)] != hostStoragePrefix {
-			continue
+		if len(hostpath) > len(hostStoragePrefix) && hostpath[:len(hostStoragePrefix)] == hostStoragePrefix {
+			res[hostpath[len(hostStoragePrefix):]] = parts[1]
+		} else {
+			res[hostpath] = parts[1]
 		}
-		res[hostpath[len(hostStoragePrefix):]] = parts[1]
 	}
 	if len(res) == 0 {
 		res = nil
@@ -33,26 +34,33 @@ func (c *Client) StorageExport(ctx context.Context, appName string) (res map[str
 	return
 }
 
-func (c *Client) StorageEnsure(ctx context.Context, name string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("storage:ensure-directory %s", name))
-	return err
+func getPathToMount(name string) string {
+	if name == "" {
+		return ""
+	}
+	if name[0] == '/' {
+		return name
+	}
+	return hostStoragePrefix + name
 }
 
 func (c *Client) StorageMount(ctx context.Context, appName string, name string, mountPath string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("storage:mount %s %s:%s", appName, hostStoragePrefix+name, mountPath))
+	_, _, err := c.Run(ctx, fmt.Sprintf("storage:mount %s %s:%s", appName, getPathToMount(name), mountPath))
 	return err
 }
 
 func (c *Client) StorageUnmount(ctx context.Context, appName string, name string, mountPath string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("storage:unmount %s %s:%s", appName, hostStoragePrefix+name, mountPath))
+	_, _, err := c.Run(ctx, fmt.Sprintf("storage:unmount %s %s:%s", appName, getPathToMount(name), mountPath))
 	return err
 }
 
 func (c *Client) StorageEnsureAndMount(ctx context.Context, appName string, name string, mountPath string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("storage:ensure-directory %s", name))
-	if err != nil {
-		return err
+	if name != "" && name[0] != '/' {
+		_, _, err := c.Run(ctx, fmt.Sprintf("storage:ensure-directory %s", name))
+		if err != nil {
+			return err
+		}
 	}
-	_, _, err = c.Run(ctx, fmt.Sprintf("storage:mount %s %s:%s", appName, hostStoragePrefix+name, mountPath))
+	_, _, err := c.Run(ctx, fmt.Sprintf("storage:mount %s %s:%s", appName, getPathToMount(name), mountPath))
 	return err
 }

@@ -12,6 +12,7 @@ func (c *Client) DomainsExport(ctx context.Context, appName string) (res []strin
 		return nil, err
 	}
 
+	enabled := false
 	lines := strings.Split(stdout, "\n")
 	for _, line := range lines {
 		parts := strings.Split(line, ":")
@@ -21,9 +22,15 @@ func (c *Client) DomainsExport(ctx context.Context, appName string) (res []strin
 			if domainList != "" {
 				res = append(res, strings.Split(domainList, " ")...)
 			}
-			break
+		} else if key == "Domains app enabled" {
+			enabled = strings.TrimSpace(parts[1]) == "true"
 		}
 	}
+
+	if !enabled {
+		return nil, nil
+	}
+
 	return
 }
 
@@ -39,6 +46,16 @@ func (c *Client) DomainsSet(ctx context.Context, appName string, domains []strin
 
 func (c *Client) DomainsClear(ctx context.Context, appName string) error {
 	_, _, err := c.Run(ctx, fmt.Sprintf("domains:clear %s", appName))
+	return err
+}
+
+func (c *Client) DomainsDisable(ctx context.Context, appName string) error {
+	_, _, err := c.Run(ctx, fmt.Sprintf("domains:disable %s", appName))
+	return err
+}
+
+func (c *Client) DomainsEnable(ctx context.Context, appName string) error {
+	_, _, err := c.Run(ctx, fmt.Sprintf("domains:enable %s", appName))
 	return err
 }
 

@@ -131,7 +131,7 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 					},
 				},
 				Validators: []validator.Map{
-					mapvalidator.KeysAre(stringvalidator.RegexMatches(regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`), "invalid name")),
+					mapvalidator.KeysAre(stringvalidator.LengthAtLeast(1)),
 				},
 			},
 			"checks": schema.SingleNestedAttribute{
@@ -531,6 +531,10 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 		if err != nil {
 			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to add domain", "Unable to add domain")
 		}
+		err = r.client.DomainsEnable(ctx, plan.AppName.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to enable domains support", "Unable to enable domains support")
+		}
 	}
 
 	if len(plan.ProxyPorts) != 0 {
@@ -754,12 +758,25 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 	if needToSetDomains {
 		var err error
 		if len(domainsToSet) == 0 {
+			err = r.client.DomainsDisable(ctx, appName)
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to disable domains support", "Unable to disable domains support. "+err.Error())
+			}
+
 			err = r.client.DomainsClear(ctx, appName)
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to clear domains", "Unable to clear domains. "+err.Error())
+			}
 		} else {
+			err = r.client.DomainsEnable(ctx, appName)
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to enable domains support", "Unable to enable domains support. "+err.Error())
+			}
+
 			err = r.client.DomainsSet(ctx, appName, domainsToSet)
-		}
-		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to set domains", "Unable to set domains. "+err.Error())
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to set domains", "Unable to set domains. "+err.Error())
+			}
 		}
 	}
 	// --
