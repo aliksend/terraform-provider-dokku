@@ -758,11 +758,15 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 					if err != nil {
 						resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(existingName), "Unable to mount storage", "Unable to mount storage. "+err.Error())
 					}
+
+					restartRequired = true
 				} else if !planStorage.LocalDirectory.IsNull() {
 					err := r.client.StorageEnsure(ctx, planName, planStorage.LocalDirectory.ValueStringPointer())
 					if err != nil {
 						resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(existingName), "Unable to ensure storage", "Unable to ensure storage. "+err.Error())
 					}
+
+					restartRequired = true
 				}
 
 				break
@@ -773,6 +777,8 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 			if err != nil {
 				resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(existingName), "Unable to unmount storage", "Unable to unmount storage. "+err.Error())
 			}
+
+			restartRequired = true
 		}
 	}
 	for planName, planStorage := range plan.Storage {
@@ -793,6 +799,8 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 			if err != nil {
 				resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(planName), "Unable to mount storage", "Unable to mount storage. "+err.Error())
 			}
+
+			restartRequired = true
 		}
 	}
 	// --
