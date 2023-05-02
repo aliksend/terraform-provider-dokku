@@ -583,6 +583,11 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 		if err != nil {
 			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to enable domains support", "Unable to enable domains support")
 		}
+	} else {
+		err = r.client.DomainsDisable(ctx, plan.AppName.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to disable domains support", "Unable to disable domains support")
+		}
 	}
 
 	if len(plan.ProxyPorts) != 0 {
@@ -597,6 +602,15 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 		err := r.client.ProxyPortsSet(ctx, plan.AppName.ValueString(), proxyPorts)
 		if err != nil {
 			resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to set proxy-ports", "Unable to set proxy-ports")
+		}
+		err = r.client.ProxyEnable(ctx, plan.AppName.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to enable proxy-ports", "Unable to enable proxy-ports")
+		}
+	} else {
+		err = r.client.ProxyDisable(ctx, plan.AppName.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to disable proxy-ports", "Unable to disable proxy-ports")
 		}
 	}
 
@@ -866,14 +880,26 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 		})
 	}
 	if needToSetProxyPorts {
-		var err error
 		if len(proxyPortsToSet) == 0 {
-			err = r.client.ProxyPortsClear(ctx, appName)
+			err := r.client.ProxyPortsClear(ctx, appName)
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to clear proxy ports", "Unable to clear proxy ports. "+err.Error())
+			}
+
+			err = r.client.ProxyDisable(ctx, appName)
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to disable proxy ports", "Unable to disable proxy ports. "+err.Error())
+			}
 		} else {
-			err = r.client.ProxyPortsSet(ctx, appName, proxyPortsToSet)
-		}
-		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to set proxy ports", "Unable to set proxy ports. "+err.Error())
+			err := r.client.ProxyPortsSet(ctx, appName, proxyPortsToSet)
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to set proxy ports", "Unable to set proxy ports. "+err.Error())
+			}
+
+			err = r.client.ProxyEnable(ctx, appName)
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to enable proxy ports", "Unable to enable proxy ports. "+err.Error())
+			}
 		}
 	}
 	// --

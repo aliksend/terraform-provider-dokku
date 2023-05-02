@@ -40,6 +40,16 @@ func (c *Client) ProxyPortsExport(ctx context.Context, appName string) (res []Pr
 	return
 }
 
+func (c *Client) ProxyDisable(ctx context.Context, appName string) error {
+	_, _, err := c.Run(ctx, fmt.Sprintf("proxy:ports-disable %s", appName))
+	return err
+}
+
+func (c *Client) ProxyEnable(ctx context.Context, appName string) error {
+	_, _, err := c.Run(ctx, fmt.Sprintf("proxy:ports-enable %s", appName))
+	return err
+}
+
 func (c *Client) ProxyPortRemove(ctx context.Context, appName string, hostPort int64) error {
 	_, _, err := c.Run(ctx, fmt.Sprintf("proxy:ports-remove %s %d", appName, hostPort))
 	return err
