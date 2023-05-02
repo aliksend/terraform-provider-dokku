@@ -41,8 +41,8 @@ type appResourceModel struct {
 	Config        map[string]types.String      `tfsdk:"config"`
 	Storage       map[string]storageModel      `tfsdk:"storage"`
 	Checks        *checkModel                  `tfsdk:"checks"`
-	Domains       []types.String               `tfsdk:"domains"`
 	ProxyPorts    map[string]proxyPortModel    `tfsdk:"proxy_ports"`
+	Domains       []types.String               `tfsdk:"domains"`
 	DockerOptions map[string]dockerOptionModel `tfsdk:"docker_options"`
 	Networks      *networkModel                `tfsdk:"networks"`
 	Deploy        *deployModel                 `tfsdk:"deploy"`
@@ -167,14 +167,6 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 					},
 				},
 			},
-			"domains": schema.SetAttribute{
-				Optional:    true,
-				Description: "Domains setup for app",
-				ElementType: types.StringType,
-				Validators: []validator.Set{
-					setvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
-				},
-			},
 			"proxy_ports": schema.MapNestedAttribute{
 				Optional:    true,
 				Description: "Proxy ports setup for app. Keys are host ports",
@@ -198,6 +190,14 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				},
 				Validators: []validator.Map{
 					mapvalidator.KeysAre(stringvalidator.RegexMatches(regexp.MustCompile(`^\d+$`), "Must be integer")),
+				},
+			},
+			"domains": schema.SetAttribute{
+				Optional:    true,
+				Description: "Domains setup for app",
+				ElementType: types.StringType,
+				Validators: []validator.Set{
+					setvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
 				},
 			},
 			"docker_options": schema.MapNestedAttribute{
@@ -570,26 +570,6 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 		}
 	}
 
-	if len(plan.Domains) != 0 {
-		var domains []string
-		for _, domain := range plan.Domains {
-			domains = append(domains, domain.ValueString())
-		}
-		err := r.client.DomainsSet(ctx, plan.AppName.ValueString(), domains)
-		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to add domain", "Unable to add domain")
-		}
-		err = r.client.DomainsEnable(ctx, plan.AppName.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to enable domains support", "Unable to enable domains support")
-		}
-	} else {
-		err = r.client.DomainsDisable(ctx, plan.AppName.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to disable domains support", "Unable to disable domains support")
-		}
-	}
-
 	if len(plan.ProxyPorts) != 0 {
 		var proxyPorts []dokkuclient.ProxyPort
 		for hostPort, proxyPort := range plan.ProxyPorts {
@@ -611,6 +591,26 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 		err = r.client.ProxyDisable(ctx, plan.AppName.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to disable proxy-ports", "Unable to disable proxy-ports")
+		}
+	}
+
+	if len(plan.Domains) != 0 {
+		var domains []string
+		for _, domain := range plan.Domains {
+			domains = append(domains, domain.ValueString())
+		}
+		err := r.client.DomainsSet(ctx, plan.AppName.ValueString(), domains)
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to add domain", "Unable to add domain")
+		}
+		err = r.client.DomainsEnable(ctx, plan.AppName.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to enable domains support", "Unable to enable domains support")
+		}
+	} else {
+		err = r.client.DomainsDisable(ctx, plan.AppName.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to disable domains support", "Unable to disable domains support")
 		}
 	}
 
@@ -789,60 +789,6 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 	}
 	// --
 
-	// -- domains
-	needToSetDomains := false
-	var domainsToSet []string
-	for _, existingDomain := range state.Domains {
-		found := false
-		for _, planDomain := range plan.Domains {
-			if planDomain == existingDomain {
-				found = true
-				break
-			}
-		}
-		if !found {
-			needToSetDomains = true
-		}
-	}
-	for _, planDomain := range plan.Domains {
-		found := false
-		for _, existingDomain := range state.Domains {
-			if planDomain == existingDomain {
-				found = true
-				break
-			}
-		}
-		if !found {
-			needToSetDomains = true
-		}
-		domainsToSet = append(domainsToSet, planDomain.ValueString())
-	}
-	if needToSetDomains {
-		var err error
-		if len(domainsToSet) == 0 {
-			err = r.client.DomainsDisable(ctx, appName)
-			if err != nil {
-				resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to disable domains support", "Unable to disable domains support. "+err.Error())
-			}
-
-			err = r.client.DomainsClear(ctx, appName)
-			if err != nil {
-				resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to clear domains", "Unable to clear domains. "+err.Error())
-			}
-		} else {
-			err = r.client.DomainsEnable(ctx, appName)
-			if err != nil {
-				resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to enable domains support", "Unable to enable domains support. "+err.Error())
-			}
-
-			err = r.client.DomainsSet(ctx, appName, domainsToSet)
-			if err != nil {
-				resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to set domains", "Unable to set domains. "+err.Error())
-			}
-		}
-	}
-	// --
-
 	// -- proxy ports
 	needToSetProxyPorts := false
 	var proxyPortsToSet []dokkuclient.ProxyPort
@@ -899,6 +845,60 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 			err = r.client.ProxyEnable(ctx, appName)
 			if err != nil {
 				resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to enable proxy ports", "Unable to enable proxy ports. "+err.Error())
+			}
+		}
+	}
+	// --
+
+	// -- domains
+	needToSetDomains := false
+	var domainsToSet []string
+	for _, existingDomain := range state.Domains {
+		found := false
+		for _, planDomain := range plan.Domains {
+			if planDomain == existingDomain {
+				found = true
+				break
+			}
+		}
+		if !found {
+			needToSetDomains = true
+		}
+	}
+	for _, planDomain := range plan.Domains {
+		found := false
+		for _, existingDomain := range state.Domains {
+			if planDomain == existingDomain {
+				found = true
+				break
+			}
+		}
+		if !found {
+			needToSetDomains = true
+		}
+		domainsToSet = append(domainsToSet, planDomain.ValueString())
+	}
+	if needToSetDomains {
+		var err error
+		if len(domainsToSet) == 0 {
+			err = r.client.DomainsDisable(ctx, appName)
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to disable domains support", "Unable to disable domains support. "+err.Error())
+			}
+
+			err = r.client.DomainsClear(ctx, appName)
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to clear domains", "Unable to clear domains. "+err.Error())
+			}
+		} else {
+			err = r.client.DomainsEnable(ctx, appName)
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to enable domains support", "Unable to enable domains support. "+err.Error())
+			}
+
+			err = r.client.DomainsSet(ctx, appName, domainsToSet)
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to set domains", "Unable to set domains. "+err.Error())
 			}
 		}
 	}
