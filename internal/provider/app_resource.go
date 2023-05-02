@@ -77,6 +77,7 @@ type deployModel struct {
 	Login            types.String `tfsdk:"login"`
 	Password         types.String `tfsdk:"password"`
 	DockerImage      types.String `tfsdk:"docker_image"`
+	AllowRebuild     types.Bool   `tfsdk:"allow_rebuild"`
 	GitRepository    types.String `tfsdk:"git_repository"`
 	GitRepositoryRef types.String `tfsdk:"git_repository_ref"`
 	ArchiveType      types.String `tfsdk:"archive_type"`
@@ -280,6 +281,10 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 						Validators: []validator.String{
 							stringvalidator.LengthAtLeast(1),
 						},
+					},
+					"allow_rebuild": schema.BoolAttribute{
+						Optional:    true,
+						Description: "Allow to run ps:rebuild for app if same docker_image provided second time",
 					},
 					"git_repository": schema.StringAttribute{
 						Optional:    true,
@@ -1091,7 +1096,7 @@ func (r *appResource) deploy(ctx context.Context, appName string, deployModel de
 			}
 		}
 
-		err = r.client.DeployFromImage(ctx, appName, deployModel.DockerImage.ValueString())
+		err = r.client.DeployFromImage(ctx, appName, deployModel.DockerImage.ValueString(), deployModel.AllowRebuild.ValueBool())
 	case "git_repository":
 		if !deployModel.Login.IsNull() && !deployModel.Password.IsNull() {
 			u, err := url.Parse(deployModel.GitRepository.ValueString())

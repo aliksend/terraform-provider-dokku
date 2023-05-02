@@ -24,11 +24,14 @@ func (c *Client) DeployRebuild(ctx context.Context, appName string) error {
 	return err
 }
 
-func (c *Client) DeployFromImage(ctx context.Context, appName string, dockerImage string) error {
+func (c *Client) DeployFromImage(ctx context.Context, appName string, dockerImage string, allowRebuild bool) error {
 	stdout, _, err := c.Run(ctx, fmt.Sprintf("git:from-image %s %s", appName, dockerImage))
 	if err != nil {
 		if strings.Contains(stdout, "No changes detected, skipping git commit") {
-			return c.DeployRebuild(ctx, appName)
+			if allowRebuild {
+				return c.DeployRebuild(ctx, appName)
+			}
+			return nil
 		}
 
 		return err
