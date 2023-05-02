@@ -72,7 +72,7 @@ func (c *Client) storageEnsure(ctx context.Context, name string) error {
 	return nil
 }
 
-func (c *Client) StorageEnsureAndMount(ctx context.Context, appName string, name string, mountPath string, localDirectory *string) error {
+func (c *Client) StorageEnsure(ctx context.Context, name string, localDirectory *string) error {
 	err := c.storageEnsure(ctx, name)
 	if err != nil {
 		return fmt.Errorf("unable to ensure storage: %w", err)
@@ -83,7 +83,7 @@ func (c *Client) StorageEnsureAndMount(ctx context.Context, appName string, name
 			return fmt.Errorf("SCP connection not configured")
 		}
 
-		err := storageSyncDirectories(ctx, c.sftpClient, *localDirectory, hostStoragePrefix+name)
+		err := storageSyncDirectories(ctx, c.sftpClient, *localDirectory, getPathToMount(name))
 		if err != nil {
 			return err
 		}
@@ -95,8 +95,7 @@ func (c *Client) StorageEnsureAndMount(ctx context.Context, appName string, name
 		}
 	}
 
-	_, _, err = c.Run(ctx, fmt.Sprintf("storage:mount %s %s:%s", appName, hostStoragePrefix+name, mountPath))
-	return err
+	return nil
 }
 
 func storageUploadFile(sftp *sftp.Client, localFile string, remoteFile string) error {

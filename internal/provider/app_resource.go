@@ -560,7 +560,12 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 	}
 
 	for hostPath, storage := range plan.Storage {
-		err := r.client.StorageEnsureAndMount(ctx, plan.AppName.ValueString(), hostPath, storage.MountPath.ValueString(), storage.LocalDirectory.ValueStringPointer())
+		err := r.client.StorageEnsure(ctx, hostPath, storage.LocalDirectory.ValueStringPointer())
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(hostPath), "Unable to ensure storage", "Unable to ensure storage")
+		}
+
+		err = r.client.StorageMount(ctx, plan.AppName.ValueString(), hostPath, storage.MountPath.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(hostPath), "Unable to mount storage", "Unable to mount storage")
 		}
@@ -738,15 +743,25 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 			if existingName == planName {
 				found = true
 
-				if !existingStorage.MountPath.Equal(planStorage.MountPath) || !planStorage.LocalDirectory.IsNull() {
+				if !existingStorage.MountPath.Equal(planStorage.MountPath) {
 					err := r.client.StorageUnmount(ctx, appName, existingName, existingStorage.MountPath.ValueString())
 					if err != nil {
 						resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(existingName), "Unable to unmount storage", "Unable to unmount storage. "+err.Error())
 					}
 
-					err = r.client.StorageEnsureAndMount(ctx, appName, planName, planStorage.MountPath.ValueString(), planStorage.LocalDirectory.ValueStringPointer())
+					err = r.client.StorageEnsure(ctx, planName, planStorage.LocalDirectory.ValueStringPointer())
+					if err != nil {
+						resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(existingName), "Unable to ensure storage", "Unable to ensure storage. "+err.Error())
+					}
+
+					err = r.client.StorageMount(ctx, appName, planName, planStorage.MountPath.ValueString())
 					if err != nil {
 						resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(existingName), "Unable to mount storage", "Unable to mount storage. "+err.Error())
+					}
+				} else if !planStorage.LocalDirectory.IsNull() {
+					err := r.client.StorageEnsure(ctx, planName, planStorage.LocalDirectory.ValueStringPointer())
+					if err != nil {
+						resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(existingName), "Unable to ensure storage", "Unable to ensure storage. "+err.Error())
 					}
 				}
 
@@ -769,7 +784,12 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 			}
 		}
 		if !found {
-			err := r.client.StorageEnsureAndMount(ctx, appName, planName, planStorage.MountPath.ValueString(), planStorage.LocalDirectory.ValueStringPointer())
+			err := r.client.StorageEnsure(ctx, planName, planStorage.LocalDirectory.ValueStringPointer())
+			if err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(planName), "Unable to ensure storage", "Unable to ensure storage. "+err.Error())
+			}
+
+			err = r.client.StorageMount(ctx, appName, planName, planStorage.MountPath.ValueString())
 			if err != nil {
 				resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(planName), "Unable to mount storage", "Unable to mount storage. "+err.Error())
 			}
