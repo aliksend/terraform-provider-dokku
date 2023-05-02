@@ -394,12 +394,19 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 		if len(storage) == 0 {
 			state.Storage = nil
 		} else {
-			state.Storage = make(map[string]storageModel)
+			stateStorage := make(map[string]storageModel)
 			for k, v := range storage {
-				state.Storage[k] = storageModel{
-					MountPath: basetypes.NewStringValue(v),
+				localDirectory := basetypes.NewStringNull()
+				if storageConfig, ok := state.Storage[k]; ok {
+					localDirectory = storageConfig.LocalDirectory
+				}
+
+				stateStorage[k] = storageModel{
+					MountPath:      basetypes.NewStringValue(v),
+					LocalDirectory: localDirectory,
 				}
 			}
+			state.Storage = stateStorage
 		}
 	}
 
