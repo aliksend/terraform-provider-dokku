@@ -325,6 +325,7 @@ func (p *dokkuProvider) Resources(ctx context.Context) []func() resource.Resourc
 	return []func() resource.Resource{
 		NewAppResource,
 		NewDomainResource,
+		NewHttpAuthResource,
 		NewLetsencryptResource,
 		NewPluginResource,
 		NewPostgresLinkResource,
