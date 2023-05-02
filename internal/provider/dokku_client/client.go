@@ -57,7 +57,11 @@ func (c *Client) Run(ctx context.Context, cmd string, sensitiveStrings ...string
 
 	if err != nil {
 		status = parseStatusCode(err.Error())
-		tflog.Error(ctx, "SSH error", map[string]any{"status": status, "stdout": stdout})
+		if c.logSshCommands {
+			tflog.Error(ctx, "SSH error", map[string]any{"status": status, "stdout": stdout})
+		} else {
+			tflog.Debug(ctx, "SSH error", map[string]any{"status": status, "stdout": stdout})
+		}
 		err = fmt.Errorf("Error [%d]: %s", status, stdout)
 	}
 	return
