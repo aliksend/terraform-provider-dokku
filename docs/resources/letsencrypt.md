@@ -18,5 +18,6 @@ description: |-
 ### Required
 
 - `app_name` (String)
+- `email` (String)
 
 

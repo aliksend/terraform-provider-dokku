@@ -23,25 +23,25 @@ resource "dokku_app" "demo" {
 
 ### Required
 
-- `app_name` (String)
+- `app_name` (String) Name of application to manage
 
 ### Optional
 
-- `checks` (Attributes) (see [below for nested schema](#nestedatt--checks))
-- `config` (Map of String)
-- `deploy` (Attributes) (see [below for nested schema](#nestedatt--deploy))
-- `docker_options` (Attributes Map) (see [below for nested schema](#nestedatt--docker_options))
-- `domains` (Set of String)
-- `networks` (Attributes) (see [below for nested schema](#nestedatt--networks))
-- `proxy_ports` (Attributes Map) (see [below for nested schema](#nestedatt--proxy_ports))
-- `storage` (Attributes Map) (see [below for nested schema](#nestedatt--storage))
+- `checks` (Attributes) Checks setup for app (see [below for nested schema](#nestedatt--checks))
+- `config` (Map of String) Config (env vars) for app
+- `deploy` (Attributes) Deploy setup for app (see [below for nested schema](#nestedatt--deploy))
+- `docker_options` (Attributes Map) Docker options for app. Keys are options (see [below for nested schema](#nestedatt--docker_options))
+- `domains` (Set of String) Domains setup for app
+- `networks` (Attributes) Network setup for app (see [below for nested schema](#nestedatt--networks))
+- `proxy_ports` (Attributes Map) Proxy ports setup for app. Keys are host ports (see [below for nested schema](#nestedatt--proxy_ports))
+- `storage` (Attributes Map) Persistent storage setup for app. Keys are storage names or absolute paths to host directories (see [below for nested schema](#nestedatt--storage))
 
 <a id="nestedatt--checks"></a>
 ### Nested Schema for `checks`
 
 Required:
 
-- `status` (String)
+- `status` (String) Checks status. Default: enabled
 
 
 <a id="nestedatt--deploy"></a>
@@ -49,16 +49,17 @@ Required:
 
 Required:
 
-- `type` (String)
+- `type` (String) Type of deploy to use. Allowed values: archive, docker_image, git_repository
 
 Optional:
 
-- `archive_type` (String)
-- `archive_url` (String)
-- `docker_image` (String)
-- `git_repository` (String)
-- `git_repository_build` (Boolean)
-- `git_repository_ref` (String)
+- `archive_type` (String) Type of archive to deploy. Allowed values: tar, tar.gz, zip
+- `archive_url` (String) URL of archive to delpoy from. Login and password will not be used
+- `docker_image` (String) Docker image to deploy from. If login and password is provided then it will be used to sign in to docker registry.
+- `git_repository` (String) Git repository to deploy from. If login and password is provided then it will be used to sign in to repository.
+- `git_repository_ref` (String) Ref of git repository to deploy from
+- `login` (String) Login to use for deployment
+- `password` (String, Sensitive) Password to use for deployment
 
 
 <a id="nestedatt--docker_options"></a>
@@ -66,7 +67,7 @@ Optional:
 
 Required:
 
-- `phase` (Set of String)
+- `phase` (Set of String) Phase to apply docker-options to. Allowed values: build, deploy, run
 
 
 <a id="nestedatt--networks"></a>
@@ -74,9 +75,9 @@ Required:
 
 Optional:
 
-- `attach_post_create` (String)
-- `attach_post_deploy` (String)
-- `initial_network` (String)
+- `attach_post_create` (String) Name of network to use as attach-post-create
+- `attach_post_deploy` (String) Name of network to use as attach-post-deploy
+- `initial_network` (String) Name of network to use as initial-network
 
 
 <a id="nestedatt--proxy_ports"></a>
@@ -84,8 +85,8 @@ Optional:
 
 Required:
 
-- `container_port` (String)
-- `scheme` (String)
+- `container_port` (String) Port inside container to proxy
+- `scheme` (String) Scheme to use. Allowed values: http, https
 
 
 <a id="nestedatt--storage"></a>
@@ -93,7 +94,11 @@ Required:
 
 Required:
 
-- `mount_path` (String)
+- `mount_path` (String) Path inside container to mount to
+
+Optional:
+
+- `local_directory` (String) Now working like a crutch. Uploads local directory to host (always, without checking is it changed). Requires SCP to be configured with user that can call sudo without password
 
 ## Import
 
