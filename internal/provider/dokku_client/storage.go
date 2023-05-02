@@ -62,7 +62,7 @@ func (c *Client) StorageUnmount(ctx context.Context, appName string, name string
 	return err
 }
 
-func (c *Client) storageEnsure(ctx context.Context, name string) error {
+func (c *Client) storageEnsureDirectory(ctx context.Context, name string) error {
 	if name != "" && name[0] != '/' {
 		_, _, err := c.Run(ctx, fmt.Sprintf("storage:ensure-directory %s", name))
 		if err != nil {
@@ -73,7 +73,7 @@ func (c *Client) storageEnsure(ctx context.Context, name string) error {
 }
 
 func (c *Client) StorageEnsure(ctx context.Context, name string, localDirectory *string) error {
-	err := c.storageEnsure(ctx, name)
+	err := c.storageEnsureDirectory(ctx, name)
 	if err != nil {
 		return fmt.Errorf("unable to ensure storage: %w", err)
 	}
@@ -89,7 +89,7 @@ func (c *Client) StorageEnsure(ctx context.Context, name string, localDirectory 
 		}
 
 		// Run ensure again to restore permissions
-		err = c.storageEnsure(ctx, name)
+		err = c.storageEnsureDirectory(ctx, name)
 		if err != nil {
 			return fmt.Errorf("unable to ensure storage: %w", err)
 		}
@@ -196,6 +196,7 @@ func storageRemoveRemoteFilesAndDirectories(ctx context.Context, sftp *sftp.Clie
 func storageCreateDirsOnRemote(ctx context.Context, sftp *sftp.Client, rootDirectory string, dirsToCreate []string) error {
 	for _, dirname := range dirsToCreate {
 		remoteDir := filepath.Join(rootDirectory, dirname)
+		tflog.Debug(ctx, "Create dir on remote", map[string]any{"remote_dir": remoteDir})
 		err := sftp.MkdirAll(remoteDir)
 		if err != nil {
 			return fmt.Errorf("unable to make dir %s: %w", remoteDir, err)

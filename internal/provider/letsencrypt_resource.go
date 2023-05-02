@@ -212,7 +212,6 @@ func (r *letsencryptResource) Delete(ctx context.Context, req resource.DeleteReq
 		resp.Diagnostics.AddError("Unable to disable letsencrypt", "Unable to disable letsencrypt. "+err.Error())
 		return
 	}
-
 }
 
 func (r *letsencryptResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
