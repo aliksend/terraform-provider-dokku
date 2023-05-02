@@ -20,6 +20,32 @@ ssh-copy-id user@IP
 cat ~/.ssh/authorized_keys | dokku ssh-keys:add admin
 ```
 
+Add the provider and host settings to your terraform block.
+The SSH key should be that of a [dokku user](https://dokku.com/docs/deployment/user-management/). Dokku users have dokku set as a forced command - the provider will not attempt to explicitly specify the dokku binary over SSH.
+
+```hcl
+terraform {
+  required_providers {
+    dokku = {
+      source  = "registry.terraform.io/aliksend/dokku"
+    }
+  }
+}
+
+provider "dokku" {
+  ssh_host = "dokku.me"
+
+  # optional
+  ssh_user = "dokku"
+  ssh_port = 22
+  ssh_cert = "~/.ssh/id_rsa"
+
+  # to support copying from local to host
+  scp_user = "root"
+  scp_cert = "~/.ssh/root_rsa"
+}
+```
+
 [Documentation](docs/index.md)
 
 ### Deploy using push from git repository (simplest way)

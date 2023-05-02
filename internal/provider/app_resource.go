@@ -49,7 +49,8 @@ type appResourceModel struct {
 }
 
 type storageModel struct {
-	MountPath types.String `tfsdk:"mount_path"`
+	LocalDirectory types.String `tfsdk:"local_directory"`
+	MountPath      types.String `tfsdk:"mount_path"`
 }
 
 type checkModel struct {
@@ -102,7 +103,8 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"app_name": schema.StringAttribute{
-				Required: true,
+				Required:    true,
+				Description: "Name of application to manage",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -112,6 +114,7 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 			},
 			"config": schema.MapAttribute{
 				Optional:    true,
+				Description: "Config (env vars) for app",
 				ElementType: types.StringType,
 				Validators: []validator.Map{
 					mapvalidator.KeysAre(stringvalidator.RegexMatches(regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`), "invalid name")),
@@ -119,11 +122,28 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				},
 			},
 			"storage": schema.MapNestedAttribute{
-				Optional: true,
+				Optional:    true,
+				Description: "Persistent storage setup for app. Keys are storage names or absolute paths to host directories",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
+						"local_directory": schema.StringAttribute{
+							Optional:    true,
+							Description: "Now working like a crutch. Uploads local directory to host (always, without checking is it changed). Requires SCP to be configured with user that can call sudo without password",
+							Validators: []validator.String{
+								stringvalidator.LengthAtLeast(1),
+							},
+						},
+						// Improvements:
+						// Variant 1.
+						// Calculate checksum of files on remote host on Read. Upload local files on Update only if checksum changed
+						// - calculate only for directories with set local_directory to prevent processing large storages
+						// - requires run "sha1sum" (or smth like that) on remote host side
+						// Variant 2.
+						// Calculate checksum of local files and save it. Upload local files on Update if checksum changed
+						// - unable to track changes that made on remote host without terraform
 						"mount_path": schema.StringAttribute{
-							Required: true,
+							Required:    true,
+							Description: "Path inside container to mount to",
 							Validators: []validator.String{
 								stringvalidator.LengthAtLeast(1),
 							},
@@ -135,10 +155,12 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				},
 			},
 			"checks": schema.SingleNestedAttribute{
-				Optional: true,
+				Optional:    true,
+				Description: "Checks setup for app",
 				Attributes: map[string]schema.Attribute{
 					"status": schema.StringAttribute{
-						Required: true,
+						Required:    true,
+						Description: "Checks status. Default: enabled",
 						Validators: []validator.String{
 							stringvalidator.OneOf("enabled", "disabled", "skipped"),
 						},
@@ -147,23 +169,27 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 			},
 			"domains": schema.SetAttribute{
 				Optional:    true,
+				Description: "Domains setup for app",
 				ElementType: types.StringType,
 				Validators: []validator.Set{
 					setvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
 				},
 			},
 			"proxy_ports": schema.MapNestedAttribute{
-				Optional: true,
+				Optional:    true,
+				Description: "Proxy ports setup for app. Keys are host ports",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"scheme": schema.StringAttribute{
-							Required: true,
+							Required:    true,
+							Description: "Scheme to use. Allowed values: http, https",
 							Validators: []validator.String{
 								stringvalidator.OneOf("http", "https"),
 							},
 						},
 						"container_port": schema.StringAttribute{
-							Required: true,
+							Required:    true,
+							Description: "Port inside container to proxy",
 							Validators: []validator.String{
 								stringvalidator.RegexMatches(regexp.MustCompile(`^\d+$`), "Must be integer"),
 							},
@@ -175,11 +201,13 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				},
 			},
 			"docker_options": schema.MapNestedAttribute{
-				Optional: true,
+				Optional:    true,
+				Description: "Docker options for app. Keys are options",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"phase": schema.SetAttribute{
 							Required:    true,
+							Description: "Phase to apply docker-options to. Allowed values: build, deploy, run",
 							ElementType: types.StringType,
 							Validators: []validator.Set{
 								setvalidator.ValueStringsAre(stringvalidator.OneOf("build", "deploy", "run")),
@@ -192,22 +220,26 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				},
 			},
 			"networks": schema.SingleNestedAttribute{
-				Optional: true,
+				Optional:    true,
+				Description: "Network setup for app",
 				Attributes: map[string]schema.Attribute{
 					"attach_post_create": schema.StringAttribute{
-						Optional: true,
+						Optional:    true,
+						Description: "Name of network to use as attach-post-create",
 						Validators: []validator.String{
 							stringvalidator.LengthAtLeast(1),
 						},
 					},
 					"attach_post_deploy": schema.StringAttribute{
-						Optional: true,
+						Optional:    true,
+						Description: "Name of network to use as attach-post-deploy",
 						Validators: []validator.String{
 							stringvalidator.LengthAtLeast(1),
 						},
 					},
 					"initial_network": schema.StringAttribute{
-						Optional: true,
+						Optional:    true,
+						Description: "Name of network to use as initial-network",
 						Validators: []validator.String{
 							stringvalidator.LengthAtLeast(1),
 						},
@@ -215,57 +247,66 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				},
 			},
 			"deploy": schema.SingleNestedAttribute{
-				Optional: true,
+				Optional:    true,
+				Description: "Deploy setup for app",
 				Attributes: map[string]schema.Attribute{
 					"type": schema.StringAttribute{
-						Required: true,
+						Required:    true,
+						Description: "Type of deploy to use. Allowed values: archive, docker_image, git_repository",
 						Validators: []validator.String{
 							stringvalidator.OneOf("archive", "docker_image", "git_repository"),
 						},
 					},
 					"login": schema.StringAttribute{
-						Optional: true,
+						Optional:    true,
+						Description: "Login to use for deployment",
 						Validators: []validator.String{
 							stringvalidator.LengthAtLeast(1),
 							stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("password")),
 						},
 					},
 					"password": schema.StringAttribute{
-						Optional:  true,
-						Sensitive: true,
+						Optional:    true,
+						Sensitive:   true,
+						Description: "Password to use for deployment",
 						Validators: []validator.String{
 							stringvalidator.LengthAtLeast(1),
 							stringvalidator.AlsoRequires(path.MatchRelative().AtParent().AtName("login")),
 						},
 					},
 					"docker_image": schema.StringAttribute{
-						Optional: true,
+						Optional:    true,
+						Description: "Docker image to deploy from. If login and password is provided then it will be used to sign in to docker registry.",
 						Validators: []validator.String{
 							stringvalidator.LengthAtLeast(1),
 						},
 					},
 					"git_repository": schema.StringAttribute{
-						Optional: true,
+						Optional:    true,
+						Description: "Git repository to deploy from. If login and password is provided then it will be used to sign in to repository.",
 						Validators: []validator.String{
 							stringvalidator.LengthAtLeast(1),
 						},
 					},
 					"git_repository_ref": schema.StringAttribute{
-						Optional: true,
-						Validators: []validator.String{
-							stringvalidator.LengthAtLeast(1),
-						},
-					},
-					"archive_type": schema.StringAttribute{
-						Optional: true,
+						Optional:    true,
+						Description: "Ref of git repository to deploy from",
 						Validators: []validator.String{
 							stringvalidator.LengthAtLeast(1),
 						},
 					},
 					"archive_url": schema.StringAttribute{
-						Optional: true,
+						Optional:    true,
+						Description: "URL of archive to delpoy from. Login and password will not be used",
 						Validators: []validator.String{
 							stringvalidator.LengthAtLeast(1),
+						},
+					},
+					"archive_type": schema.StringAttribute{
+						Optional:    true,
+						Description: "Type of archive to deploy. Allowed values: tar, tar.gz, zip", // https://github.com/dokku/dokku/blob/master/plugins/git/git-from-archive#L25
+						Validators: []validator.String{
+							stringvalidator.OneOf("tar", "tar.gz", "zip"),
 						},
 					},
 				},
@@ -507,7 +548,7 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 	}
 
 	for hostPath, storage := range plan.Storage {
-		err := r.client.StorageEnsureAndMount(ctx, plan.AppName.ValueString(), hostPath, storage.MountPath.ValueString())
+		err := r.client.StorageEnsureAndMount(ctx, plan.AppName.ValueString(), hostPath, storage.MountPath.ValueString(), storage.LocalDirectory.ValueStringPointer())
 		if err != nil {
 			resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(hostPath), "Unable to mount storage", "Unable to mount storage")
 		}
@@ -671,13 +712,13 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 			if existingName == planName {
 				found = true
 
-				if !existingStorage.MountPath.Equal(planStorage.MountPath) {
+				if !existingStorage.MountPath.Equal(planStorage.MountPath) || !planStorage.LocalDirectory.IsNull() {
 					err := r.client.StorageUnmount(ctx, appName, existingName, existingStorage.MountPath.ValueString())
 					if err != nil {
 						resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(existingName), "Unable to unmount storage", "Unable to unmount storage. "+err.Error())
 					}
 
-					err = r.client.StorageMount(ctx, appName, planName, planStorage.MountPath.ValueString())
+					err = r.client.StorageEnsureAndMount(ctx, appName, planName, planStorage.MountPath.ValueString(), planStorage.LocalDirectory.ValueStringPointer())
 					if err != nil {
 						resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(existingName), "Unable to mount storage", "Unable to mount storage. "+err.Error())
 					}
@@ -702,7 +743,7 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 			}
 		}
 		if !found {
-			err := r.client.StorageEnsureAndMount(ctx, appName, planName, planStorage.MountPath.ValueString())
+			err := r.client.StorageEnsureAndMount(ctx, appName, planName, planStorage.MountPath.ValueString(), planStorage.LocalDirectory.ValueStringPointer())
 			if err != nil {
 				resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(planName), "Unable to mount storage", "Unable to mount storage. "+err.Error())
 			}

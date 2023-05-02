@@ -12,15 +12,17 @@ import (
 	"github.com/melbahja/goph"
 )
 
-func New(client *goph.Client, logSshCommands bool) *Client {
+func New(client *goph.Client, sftpClient *goph.Client, logSshCommands bool) *Client {
 	return &Client{
 		client:         client,
+		sftpClient:     sftpClient,
 		logSshCommands: logSshCommands,
 	}
 }
 
 type Client struct {
 	client         *goph.Client
+	sftpClient     *goph.Client
 	logSshCommands bool
 }
 
@@ -55,7 +57,7 @@ func (c *Client) Run(ctx context.Context, cmd string, sensitiveStrings ...string
 
 	if err != nil {
 		status = parseStatusCode(err.Error())
-		tflog.Debug(ctx, "SSH error", map[string]any{"status": status, "stdout": stdout})
+		tflog.Error(ctx, "SSH error", map[string]any{"status": status, "stdout": stdout})
 		err = fmt.Errorf("Error [%d]: %s", status, stdout)
 	}
 	return
