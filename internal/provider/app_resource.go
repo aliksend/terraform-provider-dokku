@@ -653,7 +653,7 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 	}
 
 	if plan.Deploy != nil && !resp.Diagnostics.HasError() {
-		err := r.deploy(ctx, plan.AppName.ValueString(), *plan.Deploy)
+		_, err := r.deploy(ctx, plan.AppName.ValueString(), *plan.Deploy)
 		if err != nil {
 			resp.Diagnostics.AddAttributeError(path.Root("deploy"), "Unable to deploy", "Unable to deploy. "+err.Error())
 		}
@@ -1056,11 +1056,13 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 
 	// -- deploy
 	if plan.Deploy != nil {
-		err := r.deploy(ctx, plan.AppName.ValueString(), *plan.Deploy)
+		deployed, err := r.deploy(ctx, plan.AppName.ValueString(), *plan.Deploy)
 		if err != nil {
 			resp.Diagnostics.AddAttributeError(path.Root("deploy"), "Unable to deploy", "Unable to deploy. "+err.Error())
 		}
-		restartRequired = false
+		if deployed {
+			restartRequired = false
+		}
 	}
 	// --
 
@@ -1113,41 +1115,42 @@ func (r *appResource) ImportState(ctx context.Context, req resource.ImportStateR
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), req.ID)...)
 }
 
-func (r *appResource) deploy(ctx context.Context, appName string, deployModel deployModel) error {
-	var err error
+func (r *appResource) deploy(ctx context.Context, appName string, deployModel deployModel) (deployed bool, err error) {
 	switch deployModel.Type.ValueString() {
 	case "archive":
 		err = r.client.DeployFromArchive(ctx, appName, deployModel.ArchiveType.ValueString(), deployModel.ArchiveUrl.ValueString())
+		deployed = err == nil
 	case "docker_image":
 		if !deployModel.Login.IsNull() && !deployModel.Password.IsNull() {
 			u, err := url.Parse("https://" + deployModel.DockerImage.ValueString())
 			if err != nil {
-				return fmt.Errorf("unable to parse url: %w", err)
+				return false, fmt.Errorf("unable to parse url: %w", err)
 			}
 			err = r.client.RegistryLogin(ctx, u.Host, deployModel.Login.ValueString(), deployModel.Password.ValueString())
 			if err != nil {
-				return fmt.Errorf("unable to login to registry: %w", err)
+				return false, fmt.Errorf("unable to login to registry: %w", err)
 			}
 		}
 
-		err = r.client.DeployFromImage(ctx, appName, deployModel.DockerImage.ValueString(), deployModel.AllowRebuild.ValueBool())
+		deployed, err = r.client.DeployFromImage(ctx, appName, deployModel.DockerImage.ValueString(), deployModel.AllowRebuild.ValueBool())
 	case "git_repository":
 		if !deployModel.Login.IsNull() && !deployModel.Password.IsNull() {
 			u, err := url.Parse(deployModel.GitRepository.ValueString())
 			if err != nil {
-				return fmt.Errorf("unable to parse url: %w", err)
+				return false, fmt.Errorf("unable to parse url: %w", err)
 			}
 			err = r.client.GitAuth(ctx, u.Host, deployModel.Login.ValueString(), deployModel.Password.ValueString())
 			if err != nil {
-				return fmt.Errorf("unable to login to git: %w", err)
+				return false, fmt.Errorf("unable to login to git: %w", err)
 			}
 		}
 
 		err = r.client.DeploySyncRepository(ctx, appName, deployModel.GitRepository.ValueString(), deployModel.GitRepositoryRef.ValueString())
+		deployed = err == nil
 	default:
 		err = fmt.Errorf("Unknown deploy type %s", deployModel.Type.ValueString())
 	}
-	return err
+	return
 }
 
 func formatDockerOptionsPhases(phasesSet types.Set) (phases []string) {
