@@ -53,7 +53,8 @@ func (r *domainResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"domain": schema.StringAttribute{
-				Required: true,
+				Required:    true,
+				Description: "Domain to use",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

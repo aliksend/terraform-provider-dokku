@@ -54,7 +54,8 @@ func (r *pluginResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
-				Required: true,
+				Required:    true,
+				Description: "Name of plugin to install",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -63,7 +64,8 @@ func (r *pluginResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				},
 			},
 			"url": schema.StringAttribute{
-				Required: true,
+				Required:    true,
+				Description: "URL of plugin to install",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

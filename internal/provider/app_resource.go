@@ -142,6 +142,7 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 						// Variant 2.
 						// Calculate checksum of local files and save it. Upload local files on Update if checksum changed
 						// - unable to track changes that made on remote host without terraform
+						// - unable to track local changes because checksum isn't calculated on Read and Update will not be called if no changes found in configuration
 						"mount_path": schema.StringAttribute{
 							Required:    true,
 							Description: "Path inside container to mount to",

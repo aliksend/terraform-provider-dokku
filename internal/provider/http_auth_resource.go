@@ -61,7 +61,8 @@ func (r *httpAuthResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"app_name": schema.StringAttribute{
-				Required: true,
+				Required:    true,
+				Description: "App name to apply auth to",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -70,12 +71,14 @@ func (r *httpAuthResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				},
 			},
 			"users": schema.MapNestedAttribute{
-				Optional: true,
+				Optional:    true,
+				Description: "List of authorized users. Key is username",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"password": schema.StringAttribute{
-							Required:  true,
-							Sensitive: true,
+							Required:    true,
+							Sensitive:   true,
+							Description: "Password for user",
 							Validators: []validator.String{
 								stringvalidator.LengthAtLeast(1),
 							},

@@ -54,7 +54,8 @@ func (r *postgresResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"service_name": schema.StringAttribute{
-				Required: true,
+				Required:    true,
+				Description: "Service name to create",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

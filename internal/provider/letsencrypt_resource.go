@@ -55,7 +55,8 @@ func (r *letsencryptResource) Schema(_ context.Context, _ resource.SchemaRequest
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"app_name": schema.StringAttribute{
-				Required: true,
+				Required:    true,
+				Description: "App name to apply letsencrypt to. Requires domain and proxy_ports to be set",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -64,7 +65,8 @@ func (r *letsencryptResource) Schema(_ context.Context, _ resource.SchemaRequest
 				},
 			},
 			"email": schema.StringAttribute{
-				Required: true,
+				Required:    true,
+				Description: "Email to use for letsencrypt",
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},

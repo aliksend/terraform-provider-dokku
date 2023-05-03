@@ -56,7 +56,8 @@ func (r *postgresLinkResource) Schema(_ context.Context, _ resource.SchemaReques
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"app_name": schema.StringAttribute{
-				Required: true,
+				Required:    true,
+				Description: "App name to apply link service to",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -65,7 +66,8 @@ func (r *postgresLinkResource) Schema(_ context.Context, _ resource.SchemaReques
 				},
 			},
 			"service_name": schema.StringAttribute{
-				Required: true,
+				Required:    true,
+				Description: "Service name to link",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

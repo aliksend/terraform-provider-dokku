@@ -17,7 +17,7 @@ description: |-
 
 ### Required
 
-- `name` (String)
-- `url` (String)
+- `name` (String) Name of plugin to install
+- `url` (String) URL of plugin to install
 
 
