@@ -954,6 +954,8 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 					if err != nil {
 						resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(existingValue), "Unable to add docker option", "Unable to add docker option. "+err.Error())
 					}
+
+					restartRequired = true
 				}
 
 				break
@@ -964,6 +966,8 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 			if err != nil {
 				resp.Diagnostics.AddAttributeError(path.Root("docker_options").AtMapKey(existingValue), "Unable to remove docker option", "Unable to remove docker option. "+err.Error())
 			}
+
+			restartRequired = true
 		}
 	}
 	for planValue, planDockerOption := range plan.DockerOptions {
@@ -979,6 +983,8 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 			if err != nil {
 				resp.Diagnostics.AddAttributeError(path.Root("docker_options").AtMapKey(planValue), "Unable to add docker option", "Unable to add docker option. "+err.Error())
 			}
+
+			restartRequired = true
 		}
 	}
 	// --
