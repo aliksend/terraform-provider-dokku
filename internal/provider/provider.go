@@ -386,6 +386,10 @@ func tmpFileWithValue(value string) (string, error) {
 }
 
 func getCertFilename(ctx context.Context, value string) (certPath string, err error) {
+	if value == "" {
+		return "", fmt.Errorf("Value for cert must be provided")
+	}
+
 	parts := strings.Split(value, ":")
 	switch parts[0] {
 	case "file":
