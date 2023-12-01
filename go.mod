@@ -10,7 +10,7 @@ require (
 	github.com/hashicorp/terraform-plugin-log v0.9.0
 	github.com/melbahja/goph v1.3.1
 	github.com/pkg/sftp v1.13.5
-	golang.org/x/crypto v0.10.0
+	golang.org/x/crypto v0.16.0
 )
 
 require (
@@ -58,8 +58,8 @@ require (
 	github.com/zclconf/go-cty v1.13.1 // indirect
 	golang.org/x/mod v0.8.0 // indirect
 	golang.org/x/net v0.11.0 // indirect
-	golang.org/x/sys v0.9.0 // indirect
-	golang.org/x/text v0.10.0 // indirect
+	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
 	google.golang.org/grpc v1.56.1 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
