@@ -12,18 +12,22 @@ import (
 	"github.com/melbahja/goph"
 )
 
-func New(client *goph.Client, sftpClient *goph.Client, logSshCommands bool) *Client {
+func New(client *goph.Client, logSshCommands bool, uploadAppName string, uploadSplitBytes int) *Client {
 	return &Client{
 		client:         client,
-		sftpClient:     sftpClient,
 		logSshCommands: logSshCommands,
+
+		uploadAppName:    uploadAppName,
+		uploadSplitBytes: uploadSplitBytes,
 	}
 }
 
 type Client struct {
 	client         *goph.Client
-	sftpClient     *goph.Client
 	logSshCommands bool
+
+	uploadAppName    string
+	uploadSplitBytes int
 }
 
 var mutex = &sync.Mutex{}

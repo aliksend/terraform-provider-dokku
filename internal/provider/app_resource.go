@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strings"
 
 	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
 
@@ -128,21 +129,20 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"local_directory": schema.StringAttribute{
-							Optional:    true,
-							Description: "Now working like a crutch. Uploads local directory to host (always, without checking is it changed). Requires SCP to be configured with user that can call sudo without password",
+							Optional: true,
+							Description: strings.Join([]string{
+								"Uploads local directory to host (always, without checking is it changed)",
+								"",
+								"Should not be used for uploading large files, because it is slow.",
+								"Also see upload_* attributes in provider configuration.",
+							}, "\n"),
 							Validators: []validator.String{
 								stringvalidator.LengthAtLeast(1),
 							},
 						},
 						// Improvements:
-						// Variant 1.
 						// Calculate checksum of files on remote host on Read. Upload local files on Update only if checksum changed
 						// - calculate only for directories with set local_directory to prevent processing large storages
-						// - requires run "sha1sum" (or smth like that) on remote host side
-						// Variant 2.
-						// Calculate checksum of local files and save it. Upload local files on Update if checksum changed
-						// - unable to track changes that made on remote host without terraform
-						// - unable to track local changes because checksum isn't calculated on Read and Update will not be called if no changes found in configuration
 						"mount_path": schema.StringAttribute{
 							Required:    true,
 							Description: "Path inside container to mount to",
@@ -370,7 +370,7 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 
 	config, err := r.client.ConfigExport(ctx, state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddAttributeError(path.Root("config"), "Unable to get config", "Unable to get config")
+		resp.Diagnostics.AddAttributeError(path.Root("config"), "Unable to get config", "Unable to get config. "+err.Error())
 	} else {
 		cfg := make(map[string]basetypes.StringValue)
 		for k, v := range config {
@@ -395,7 +395,7 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 
 	storage, err := r.client.StorageExport(ctx, state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddAttributeError(path.Root("storage"), "Unable to get storage", "Unable to get storage")
+		resp.Diagnostics.AddAttributeError(path.Root("storage"), "Unable to get storage", "Unable to get storage. "+err.Error())
 	} else {
 		if len(storage) == 0 {
 			state.Storage = nil
@@ -418,7 +418,7 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 
 	checkStatus, err := r.client.ChecksGet(ctx, state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddAttributeError(path.Root("checks"), "Unable to get checks", "Unable to get checks")
+		resp.Diagnostics.AddAttributeError(path.Root("checks"), "Unable to get checks", "Unable to get checks. "+err.Error())
 	} else {
 		if checkStatus == "enabled" {
 			state.Checks = nil
@@ -431,7 +431,7 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 
 	domains, err := r.client.DomainsExport(ctx, state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to get domains", "Unable to get domains")
+		resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to get domains", "Unable to get domains. "+err.Error())
 	} else {
 		if len(domains) == 0 {
 			state.Domains = nil
@@ -445,7 +445,7 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 
 	proxyPorts, err := r.client.ProxyPortsExport(ctx, state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to get proxy_ports", "Unable to get proxy_ports")
+		resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to get proxy_ports", "Unable to get proxy_ports. "+err.Error())
 	} else {
 		pp := make(map[string]proxyPortModel)
 		for _, p := range proxyPorts {
@@ -475,7 +475,7 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 
 	networks, err := r.client.NetworksReport(ctx, state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddAttributeError(path.Root("networks"), "Unable to get networks", "Unable to get networks")
+		resp.Diagnostics.AddAttributeError(path.Root("networks"), "Unable to get networks", "Unable to get networks. "+err.Error())
 	} else {
 		var attachPostCreate types.String
 		if networks["attach post create"] != "" {
@@ -556,19 +556,19 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 		}
 		err := r.client.ConfigSet(ctx, plan.AppName.ValueString(), config)
 		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("config"), "Unable to set config", "Unable to set config")
+			resp.Diagnostics.AddAttributeError(path.Root("config"), "Unable to set config", "Unable to set config. "+err.Error())
 		}
 	}
 
 	for hostPath, storage := range plan.Storage {
 		err := r.client.StorageEnsure(ctx, hostPath, storage.LocalDirectory.ValueStringPointer())
 		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(hostPath), "Unable to ensure storage", "Unable to ensure storage")
+			resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(hostPath), "Unable to ensure storage", "Unable to ensure storage. "+err.Error())
 		}
 
 		err = r.client.StorageMount(ctx, plan.AppName.ValueString(), hostPath, storage.MountPath.ValueString())
 		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(hostPath), "Unable to mount storage", "Unable to mount storage")
+			resp.Diagnostics.AddAttributeError(path.Root("storage").AtMapKey(hostPath), "Unable to mount storage", "Unable to mount storage. "+err.Error())
 		}
 	}
 
@@ -576,7 +576,7 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 		if !plan.Checks.Status.IsNull() {
 			err := r.client.ChecksSet(ctx, plan.AppName.ValueString(), plan.Checks.Status.ValueString())
 			if err != nil {
-				resp.Diagnostics.AddAttributeError(path.Root("checks"), "Unable to set checks", "Unable to set checks")
+				resp.Diagnostics.AddAttributeError(path.Root("checks"), "Unable to set checks", "Unable to set checks. "+err.Error())
 			}
 		}
 	}
@@ -592,16 +592,16 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 		}
 		err := r.client.ProxyPortsSet(ctx, plan.AppName.ValueString(), proxyPorts)
 		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to set proxy-ports", "Unable to set proxy-ports")
+			resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to set proxy-ports", "Unable to set proxy-ports. "+err.Error())
 		}
 		err = r.client.ProxyEnable(ctx, plan.AppName.ValueString())
 		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to enable proxy-ports", "Unable to enable proxy-ports")
+			resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to enable proxy-ports", "Unable to enable proxy-ports. "+err.Error())
 		}
 	} else {
 		err = r.client.ProxyDisable(ctx, plan.AppName.ValueString())
 		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to disable proxy-ports", "Unable to disable proxy-ports")
+			resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to disable proxy-ports", "Unable to disable proxy-ports. "+err.Error())
 		}
 	}
 
@@ -612,23 +612,23 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 		}
 		err := r.client.DomainsSet(ctx, plan.AppName.ValueString(), domains)
 		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to add domain", "Unable to add domain")
+			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to add domain", "Unable to add domain. "+err.Error())
 		}
 		err = r.client.DomainsEnable(ctx, plan.AppName.ValueString())
 		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to enable domains support", "Unable to enable domains support")
+			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to enable domains support", "Unable to enable domains support. "+err.Error())
 		}
 	} else {
 		err = r.client.DomainsDisable(ctx, plan.AppName.ValueString())
 		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to disable domains support", "Unable to disable domains support")
+			resp.Diagnostics.AddAttributeError(path.Root("domains"), "Unable to disable domains support", "Unable to disable domains support. "+err.Error())
 		}
 	}
 
 	for option, dockerOption := range plan.DockerOptions {
 		err := r.client.DockerOptionAdd(ctx, plan.AppName.ValueString(), formatDockerOptionsPhases(dockerOption.Phase), option)
 		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("docker_options").AtMapKey(option), "Unable to add docker option", "Unable to add docker option")
+			resp.Diagnostics.AddAttributeError(path.Root("docker_options").AtMapKey(option), "Unable to add docker option", "Unable to add docker option. "+err.Error())
 		}
 	}
 
@@ -636,19 +636,19 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 		if !plan.Networks.AttachPostCreate.IsNull() {
 			err := r.client.NetworkEnsureAndSetForApp(ctx, plan.AppName.ValueString(), "attach-post-create", plan.Networks.AttachPostCreate.ValueString())
 			if err != nil {
-				resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("attach_post_create"), "Unable to set network", "Unable to set network")
+				resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("attach_post_create"), "Unable to set network", "Unable to set network. "+err.Error())
 			}
 		}
 		if !plan.Networks.AttachPostDeploy.IsNull() {
 			err := r.client.NetworkEnsureAndSetForApp(ctx, plan.AppName.ValueString(), "attach-post-deploy", plan.Networks.AttachPostDeploy.ValueString())
 			if err != nil {
-				resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("attach_post_deploy"), "Unable to set network", "Unable to set network")
+				resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("attach_post_deploy"), "Unable to set network", "Unable to set network. "+err.Error())
 			}
 		}
 		if !plan.Networks.InitialNetwork.IsNull() {
 			err := r.client.NetworkEnsureAndSetForApp(ctx, plan.AppName.ValueString(), "initial_network", plan.Networks.InitialNetwork.ValueString())
 			if err != nil {
-				resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("initial_network"), "Unable to set network", "Unable to set network")
+				resp.Diagnostics.AddAttributeError(path.Root("networks").AtName("initial_network"), "Unable to set network", "Unable to set network. "+err.Error())
 			}
 		}
 	}
@@ -936,6 +936,7 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 			}
 		}
 	}
+	// TODO run letsencrypt:enable again after adding new domains
 	// --
 
 	// -- docker options

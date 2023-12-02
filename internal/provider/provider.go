@@ -14,11 +14,14 @@ import (
 	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
 
 	"github.com/blang/semver"
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/melbahja/goph"
@@ -39,14 +42,13 @@ type dokkuProvider struct{}
 
 // dokkuProviderModel describes the provider data model.
 type dokkuProviderModel struct {
-	SshHost               types.String `tfsdk:"ssh_host"`
-	SshPort               types.Int64  `tfsdk:"ssh_port"`
-	SshUser               types.String `tfsdk:"ssh_user"`
-	SshCert               types.String `tfsdk:"ssh_cert"`
-	ScpUser               types.String `tfsdk:"scp_user"`
-	ScpCert               types.String `tfsdk:"scp_cert"`
-	FailOnUntestedVersion types.Bool   `tfsdk:"fail_on_untested_version"`
-	LogSshCommands        types.Bool   `tfsdk:"log_ssh_commands"`
+	SshHost          types.String `tfsdk:"ssh_host"`
+	SshPort          types.Int64  `tfsdk:"ssh_port"`
+	SshUser          types.String `tfsdk:"ssh_user"`
+	SshCert          types.String `tfsdk:"ssh_cert"`
+	LogSshCommands   types.Bool   `tfsdk:"log_ssh_commands"`
+	UploadAppName    types.String `tfsdk:"upload_app_name"`
+	UploadSplitBytes types.Int64  `tfsdk:"upload_split_bytes"`
 }
 
 func (p *dokkuProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -72,27 +74,49 @@ func (p *dokkuProvider) Schema(ctx context.Context, req provider.SchemaRequest, 
 			"ssh_cert": schema.StringAttribute{
 				Optional: true,
 				Description: strings.Join([]string{
-					"Certificate to use. Supported formats:",
+					"Certificate to use. Default: ~/.ssh/id_rsa",
+					"",
+					"Supported formats:",
 					"- file:/a or /a or ./a or ~/a - use provided value as path to certificate file",
 					"- env:ABCD or $ABCD - use env var ABCD",
 					"- raw:----.. or ----... - use provided value as raw certificate",
-					"Default: ~/.ssh/id_rsa",
 				}, "\n"),
-			},
-			"scp_user": schema.StringAttribute{
-				Optional:    true,
-				Description: "Username that will be used to copy files to server. If not set then scp feature will be disabled",
-			},
-			"scp_cert": schema.StringAttribute{
-				Optional:    true,
-				Description: "Cert for username that will be used to copy files to server. Default: ssh_cert value",
-			},
-			"fail_on_untested_version": schema.BoolAttribute{
-				Optional: true,
 			},
 			"log_ssh_commands": schema.BoolAttribute{
 				Optional:    true,
-				Description: "Print SSH commands with ERROR verbose",
+				Description: "Print SSH commands with ERROR level",
+			},
+			"upload_app_name": schema.StringAttribute{
+				Optional: true,
+				Description: strings.Join([]string{
+					"This attribute is used to upload local files to remote server using storage.local_directory attribute.",
+					"App name to use for local file synchronization. Default: storage-sync",
+					"",
+					"Since dokku don't allow to upload files directly, workaround is used.",
+					"Algorithm is:",
+					"1. Create helper application, using name, provided in this attribute",
+					"2. Mount desired remote directory as /mnt",
+					"3. Deploy \"busybox\" docker image deployed to app",
+					"4. [on client side] Create tar archive for local_directory and encode it using base64",
+					"5. Connect to app using \"dokku enter\" and use a bunch of echo-s to make file \"tmp.tar.base64\", and then decode and un-tar it to /mnt",
+				}, "\n"),
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
+			},
+			"upload_split_bytes": schema.Int64Attribute{
+				Optional: true,
+				Description: strings.Join([]string{
+					"This attribute is used to upload local files to remote server using storage.local_directory attribute.",
+					"Number of bytes to split uploaded base64-encoded tar archive. See details in description to \"upload_app_name\" attribute. Default: 256",
+					"",
+					"Due to limited length of commands we can't use one echo to copy entire file.",
+					"So we need to split file into parts no larger than upload_split_bytes.",
+					"Don't use big values because if length of command exceed the limit then all operation will hang out.",
+				}, "\n"),
+				Validators: []validator.Int64{
+					int64validator.AtLeast(1),
+				},
 			},
 		},
 	}
@@ -150,10 +174,9 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	port := uint(22)
 	sshUsername := "dokku"
 	sshCertPath := "~/.ssh/id_rsa"
-	scpUsername := ""
-	scpCertPath := ""
-	failOnUntestedVersion := true
 	logSshCommands := false
+	uploadAppName := "storage-sync"
+	uploadSplitBytes := 256
 
 	if !config.SshHost.IsNull() {
 		host = config.SshHost.ValueString()
@@ -172,22 +195,14 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 			return
 		}
 	}
-	if !config.ScpUser.IsNull() {
-		scpUsername = config.ScpUser.ValueString()
-	}
-	if !config.ScpCert.IsNull() {
-		var err error
-		scpCertPath, err = getCertFilename(ctx, config.ScpCert.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("scp_cert"), "Unable to read cert", "Unable to read cert. "+err.Error())
-			return
-		}
-	}
-	if !config.FailOnUntestedVersion.IsNull() {
-		failOnUntestedVersion = config.FailOnUntestedVersion.ValueBool()
-	}
 	if !config.LogSshCommands.IsNull() {
 		logSshCommands = config.LogSshCommands.ValueBool()
+	}
+	if !config.UploadAppName.IsNull() {
+		uploadAppName = config.UploadAppName.ValueString()
+	}
+	if !config.UploadSplitBytes.IsNull() {
+		uploadSplitBytes = int(config.UploadSplitBytes.ValueInt64())
 	}
 
 	usr, err := user.Current()
@@ -198,12 +213,6 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	sshCertPath, err = resolveHomeDir(sshCertPath)
 	if err != nil {
 		resp.Diagnostics.AddAttributeError(path.Root("ssh_cert"), "Unable to get SSH cert", "Unable to get SSH cert. "+err.Error())
-	}
-	if scpCertPath != "" {
-		scpCertPath, err = resolveHomeDir(scpCertPath)
-		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("ssh_cert"), "Unable to get SSH cert for scp", "Unable to get SSH cert for scp. "+err.Error())
-		}
 	}
 
 	// If any of the expected configurations are missing, return
@@ -234,16 +243,6 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		return
 	}
 
-	scpAuth := sshAuth
-	if scpCertPath != "" && scpCertPath != sshCertPath {
-		scpAuth, err = goph.Key(scpCertPath, "")
-		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("scp_cert"), "Unable to find cert for scp", "Unable to find cert for scp. "+err.Error())
-			return
-		}
-
-	}
-
 	tflog.Debug(ctx, "ssh connection", map[string]any{"host": host, "port": port, "user": sshUsername})
 
 	sshConfig := &goph.Config{
@@ -260,26 +259,7 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		return
 	}
 
-	var sftpClient *goph.Client
-	if scpUsername != "" {
-		tflog.Debug(ctx, "scp connection", map[string]any{"host": host, "port": port, "user": scpUsername})
-
-		scpConfig := &goph.Config{
-			Auth:     scpAuth,
-			Addr:     host,
-			Port:     port,
-			User:     scpUsername,
-			Callback: verifyHost,
-		}
-
-		sftpClient, err = goph.NewConn(scpConfig)
-		if err != nil {
-			resp.Diagnostics.AddError("Unable to establish SSH connection for SCP", "Unable to establish SSH connection for SCP. "+err.Error())
-			return
-		}
-	}
-
-	dokkuClient := dokkuclient.New(client, sftpClient, logSshCommands)
+	dokkuClient := dokkuclient.New(client, logSshCommands, uploadAppName, uploadSplitBytes)
 	stdout, status, _ := dokkuClient.Run(ctx, "version")
 
 	// Check for 127 status code... suggests that we're not authenticating
@@ -303,12 +283,6 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		compat, _ := semver.ParseRange(testedVersions)
 
 		if !compat(hostVersion) {
-			tflog.Debug(ctx, "fail_on_untested_version", map[string]any{"value": failOnUntestedVersion})
-
-			if failOnUntestedVersion {
-				resp.Diagnostics.AddError(testedErrMsg, testedErrMsg)
-				return
-			}
 			resp.Diagnostics.AddWarning(testedErrMsg, testedErrMsg)
 		}
 	} else {
