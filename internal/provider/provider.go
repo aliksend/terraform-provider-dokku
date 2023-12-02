@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
@@ -260,29 +259,25 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 	}
 
 	dokkuClient := dokkuclient.New(client, logSshCommands, uploadAppName, uploadSplitBytes)
-	stdout, status, _ := dokkuClient.Run(ctx, "version")
-
-	// Check for 127 status code... suggests that we're not authenticating
-	// with a dokku user (see https://github.com/aaronstillwell/terraform-provider-dokku/issues/1)
-	if status == 127 {
-		resp.Diagnostics.AddError("must use a dokku user for authentication, see the docs", "must use a dokku user for authentication, see the docs")
+	rawVersion, version, err := dokkuClient.GetVersion(ctx)
+	if err != nil {
+		if err == dokkuclient.ErrInvalidUser {
+			resp.Diagnostics.AddError(err.Error(), err.Error())
+		} else {
+			resp.Diagnostics.AddError("unable go get dokku version", "unable go get dokku version")
+		}
 		return
 	}
 
-	re := regexp.MustCompile(`[0-9]+\.[0-9]+\.[0-9]+`)
-	found := re.FindString(stdout)
-
-	hostVersion, err := semver.Parse(found)
-
-	testedVersions := ">=0.24.0 <=0.30.3"
-	testedErrMsg := fmt.Sprintf("This provider has not been tested against Dokku version %s. Tested version range: %s", found, testedVersions)
+	testedVersions := ">=0.24.0 <=0.32.0"
+	testedErrMsg := fmt.Sprintf("This provider has not been tested against Dokku version %s. Tested version range: %s", rawVersion, testedVersions)
 
 	if err == nil {
-		tflog.Debug(ctx, "host version", map[string]any{"version": hostVersion})
+		tflog.Debug(ctx, "host version", map[string]any{"version": version})
 
-		compat, _ := semver.ParseRange(testedVersions)
+		compat := semver.MustParseRange(testedVersions)
 
-		if !compat(hostVersion) {
+		if !compat(version) {
 			resp.Diagnostics.AddWarning(testedErrMsg, testedErrMsg)
 		}
 	} else {

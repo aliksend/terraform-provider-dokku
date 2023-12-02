@@ -2,12 +2,14 @@ package dokkuclient
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/blang/semver"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/melbahja/goph"
 )
@@ -28,6 +30,8 @@ type Client struct {
 
 	uploadAppName    string
 	uploadSplitBytes int
+
+	dokkuVersion semver.Version
 }
 
 var mutex = &sync.Mutex{}
@@ -86,4 +90,28 @@ func parseStatusCode(str string) int {
 	}
 
 	return i
+}
+
+var (
+	ErrInvalidUser = errors.New("must use a dokku user for authentication, see the docs")
+)
+
+func (c *Client) GetVersion(ctx context.Context) (rawVersion string, parsedVersion semver.Version, err error) {
+	stdout, status, _ := c.Run(ctx, "version")
+
+	// Check for 127 status code... suggests that we're not authenticating
+	// with a dokku user (see https://github.com/aaronstillwell/terraform-provider-dokku/issues/1)
+	if status == 127 {
+		return "", semver.Version{}, ErrInvalidUser
+	}
+
+	re := regexp.MustCompile(`[0-9]+\.[0-9]+\.[0-9]+`)
+	found := re.FindString(stdout)
+
+	parsedVersion, err = semver.Parse(found)
+	if err != nil {
+		return found, semver.Version{}, err
+	}
+	c.dokkuVersion = parsedVersion
+	return found, parsedVersion, err
 }

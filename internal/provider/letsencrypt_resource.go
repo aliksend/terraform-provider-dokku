@@ -56,7 +56,7 @@ func (r *letsencryptResource) Schema(_ context.Context, _ resource.SchemaRequest
 		Attributes: map[string]schema.Attribute{
 			"app_name": schema.StringAttribute{
 				Required:    true,
-				Description: "App name to apply letsencrypt to. Requires domain and proxy_ports to be set",
+				Description: "App name to apply letsencrypt to. Requires domain and ports to be set",
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

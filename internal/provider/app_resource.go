@@ -42,7 +42,8 @@ type appResourceModel struct {
 	Config        map[string]types.String      `tfsdk:"config"`
 	Storage       map[string]storageModel      `tfsdk:"storage"`
 	Checks        *checkModel                  `tfsdk:"checks"`
-	ProxyPorts    map[string]proxyPortModel    `tfsdk:"proxy_ports"`
+	Ports         map[string]portModel         `tfsdk:"ports"`
+	ProxyPorts    map[string]portModel         `tfsdk:"proxy_ports"`
 	Domains       []types.String               `tfsdk:"domains"`
 	DockerOptions map[string]dockerOptionModel `tfsdk:"docker_options"`
 	Networks      *networkModel                `tfsdk:"networks"`
@@ -58,7 +59,7 @@ type checkModel struct {
 	Status types.String `tfsdk:"status"`
 }
 
-type proxyPortModel struct {
+type portModel struct {
 	Scheme        types.String `tfsdk:"scheme"`
 	ContainerPort types.String `tfsdk:"container_port"`
 }
@@ -169,9 +170,34 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 					},
 				},
 			},
+			"ports": schema.MapNestedAttribute{
+				Optional:    true,
+				Description: "Ports setup for app. Keys are host ports",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"scheme": schema.StringAttribute{
+							Required:    true,
+							Description: "Scheme to use. Allowed values: http, https",
+							Validators: []validator.String{
+								stringvalidator.OneOf("http", "https"),
+							},
+						},
+						"container_port": schema.StringAttribute{
+							Required:    true,
+							Description: "Port inside container to proxy",
+							Validators: []validator.String{
+								stringvalidator.RegexMatches(regexp.MustCompile(`^\d+$`), "Must be integer"),
+							},
+						},
+					},
+				},
+				Validators: []validator.Map{
+					mapvalidator.KeysAre(stringvalidator.RegexMatches(regexp.MustCompile(`^\d+$`), "Must be integer")),
+				},
+			},
 			"proxy_ports": schema.MapNestedAttribute{
 				Optional:    true,
-				Description: "Proxy ports setup for app. Keys are host ports",
+				Description: "DEPRECATED. Use \"ports\" instead.\n\nProxy ports setup for app. Keys are host ports.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"scheme": schema.StringAttribute{
@@ -443,13 +469,19 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 		}
 	}
 
-	proxyPorts, err := r.client.ProxyPortsExport(ctx, state.AppName.ValueString())
+	ports, err := r.client.PortsExport(ctx, state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to get proxy_ports", "Unable to get proxy_ports. "+err.Error())
+		resp.Diagnostics.AddAttributeError(path.Root("ports"), "Unable to get ports", "Unable to get ports. "+err.Error())
 	} else {
-		pp := make(map[string]proxyPortModel)
-		for _, p := range proxyPorts {
+		pp := make(map[string]portModel)
+		for _, p := range ports {
 			found := false
+			for v := range state.Ports {
+				if v == p.HostPort {
+					found = true
+					break
+				}
+			}
 			for v := range state.ProxyPorts {
 				if v == p.HostPort {
 					found = true
@@ -458,16 +490,20 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 			}
 			// only known hostport's
 			if found {
-				pp[p.HostPort] = proxyPortModel{
+				pp[p.HostPort] = portModel{
 					Scheme:        basetypes.NewStringValue(p.Scheme),
 					ContainerPort: basetypes.NewStringValue(p.ContainerPort),
 				}
 			}
 		}
 		if len(pp) == 0 {
+			state.Ports = nil
 			state.ProxyPorts = nil
 		} else {
-			state.ProxyPorts = pp
+			state.Ports = pp
+			// Don't set state.ProxyPorts and don't check it later - use only state.Ports
+			// state.ProxyPorts = pp
+			state.ProxyPorts = nil
 		}
 	}
 
@@ -581,27 +617,38 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 		}
 	}
 
-	if len(plan.ProxyPorts) != 0 {
-		var proxyPorts []dokkuclient.ProxyPort
-		for hostPort, proxyPort := range plan.ProxyPorts {
-			proxyPorts = append(proxyPorts, dokkuclient.ProxyPort{
-				Scheme:        proxyPort.Scheme.ValueString(),
+	if len(plan.Ports) != 0 || len(plan.ProxyPorts) != 0 {
+		if len(plan.ProxyPorts) > 0 {
+			resp.Diagnostics.AddAttributeWarning(path.Root("proxy_ports"), "proxy_ports attribute is deprecated, use porst attribute instead", "proxy_ports attribute is deprecated, use porst attribute instead")
+		}
+
+		var ports []dokkuclient.Port
+		for hostPort, port := range plan.Ports {
+			ports = append(ports, dokkuclient.Port{
+				Scheme:        port.Scheme.ValueString(),
 				HostPort:      hostPort,
-				ContainerPort: proxyPort.ContainerPort.ValueString(),
+				ContainerPort: port.ContainerPort.ValueString(),
 			})
 		}
-		err := r.client.ProxyPortsSet(ctx, plan.AppName.ValueString(), proxyPorts)
+		for hostPort, port := range plan.ProxyPorts {
+			ports = append(ports, dokkuclient.Port{
+				Scheme:        port.Scheme.ValueString(),
+				HostPort:      hostPort,
+				ContainerPort: port.ContainerPort.ValueString(),
+			})
+		}
+		err := r.client.PortsSet(ctx, plan.AppName.ValueString(), ports)
 		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to set proxy-ports", "Unable to set proxy-ports. "+err.Error())
+			resp.Diagnostics.AddAttributeError(path.Root("ports"), "Unable to set ports", "Unable to set ports. "+err.Error())
 		}
 		err = r.client.ProxyEnable(ctx, plan.AppName.ValueString())
 		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to enable proxy-ports", "Unable to enable proxy-ports. "+err.Error())
+			resp.Diagnostics.AddAttributeError(path.Root("ports"), "Unable to enable ports", "Unable to enable ports. "+err.Error())
 		}
 	} else {
 		err = r.client.ProxyDisable(ctx, plan.AppName.ValueString())
 		if err != nil {
-			resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to disable proxy-ports", "Unable to disable proxy-ports. "+err.Error())
+			resp.Diagnostics.AddAttributeError(path.Root("ports"), "Unable to disable ports", "Unable to disable ports. "+err.Error())
 		}
 	}
 
@@ -823,62 +870,92 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 	}
 	// --
 
-	// -- proxy ports
-	needToSetProxyPorts := false
-	var proxyPortsToSet []dokkuclient.ProxyPort
-	for existingHostPort, existingProxyPort := range state.ProxyPorts {
+	// -- ports
+	if len(plan.ProxyPorts) > 0 {
+		resp.Diagnostics.AddAttributeWarning(path.Root("proxy_ports"), "proxy_ports attribute is deprecated, use porst attribute instead", "proxy_ports attribute is deprecated, use porst attribute instead")
+	}
+	needToSetPorts := false
+	var portsToSet []dokkuclient.Port
+	for existingHostPort, existingPort := range state.Ports {
 		found := false
-		for planHostPort, planProxyPort := range plan.ProxyPorts {
+		for planHostPort, planPort := range plan.Ports {
 			if planHostPort == existingHostPort {
-				if planProxyPort.Scheme.Equal(existingProxyPort.Scheme) && planProxyPort.ContainerPort.Equal(existingProxyPort.ContainerPort) {
+				if planPort.Scheme.Equal(existingPort.Scheme) && planPort.ContainerPort.Equal(existingPort.ContainerPort) {
+					found = true
+				}
+				break
+			}
+		}
+		for planHostPort, planPort := range plan.ProxyPorts {
+			if planHostPort == existingHostPort {
+				if planPort.Scheme.Equal(existingPort.Scheme) && planPort.ContainerPort.Equal(existingPort.ContainerPort) {
 					found = true
 				}
 				break
 			}
 		}
 		if !found {
-			needToSetProxyPorts = true
+			needToSetPorts = true
 		}
 	}
-	for planHostPort, planProxyPort := range plan.ProxyPorts {
+	for planHostPort, planPort := range plan.Ports {
 		found := false
-		for existingHostPort, existingProxyPort := range state.ProxyPorts {
+		for existingHostPort, existingPort := range state.Ports {
 			if planHostPort == existingHostPort {
-				if planProxyPort.Scheme.Equal(existingProxyPort.Scheme) && planProxyPort.ContainerPort.Equal(existingProxyPort.ContainerPort) {
+				if planPort.Scheme.Equal(existingPort.Scheme) && planPort.ContainerPort.Equal(existingPort.ContainerPort) {
 					found = true
 				}
 				break
 			}
 		}
 		if !found {
-			needToSetProxyPorts = true
+			needToSetPorts = true
 		}
-		proxyPortsToSet = append(proxyPortsToSet, dokkuclient.ProxyPort{
-			Scheme:        planProxyPort.Scheme.ValueString(),
+		portsToSet = append(portsToSet, dokkuclient.Port{
+			Scheme:        planPort.Scheme.ValueString(),
 			HostPort:      planHostPort,
-			ContainerPort: planProxyPort.ContainerPort.ValueString(),
+			ContainerPort: planPort.ContainerPort.ValueString(),
 		})
 	}
-	if needToSetProxyPorts {
-		if len(proxyPortsToSet) == 0 {
-			err := r.client.ProxyPortsClear(ctx, appName)
+	for planHostPort, planPort := range plan.ProxyPorts {
+		found := false
+		for existingHostPort, existingPort := range state.Ports {
+			if planHostPort == existingHostPort {
+				if planPort.Scheme.Equal(existingPort.Scheme) && planPort.ContainerPort.Equal(existingPort.ContainerPort) {
+					found = true
+				}
+				break
+			}
+		}
+		if !found {
+			needToSetPorts = true
+		}
+		portsToSet = append(portsToSet, dokkuclient.Port{
+			Scheme:        planPort.Scheme.ValueString(),
+			HostPort:      planHostPort,
+			ContainerPort: planPort.ContainerPort.ValueString(),
+		})
+	}
+	if needToSetPorts {
+		if len(portsToSet) == 0 {
+			err := r.client.PortsClear(ctx, appName)
 			if err != nil {
-				resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to clear proxy ports", "Unable to clear proxy ports. "+err.Error())
+				resp.Diagnostics.AddAttributeError(path.Root("ports"), "Unable to clear ports", "Unable to clear ports. "+err.Error())
 			}
 
 			err = r.client.ProxyDisable(ctx, appName)
 			if err != nil {
-				resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to disable proxy ports", "Unable to disable proxy ports. "+err.Error())
+				resp.Diagnostics.AddAttributeError(path.Root("ports"), "Unable to disable ports", "Unable to disable ports. "+err.Error())
 			}
 		} else {
-			err := r.client.ProxyPortsSet(ctx, appName, proxyPortsToSet)
+			err := r.client.PortsSet(ctx, appName, portsToSet)
 			if err != nil {
-				resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to set proxy ports", "Unable to set proxy ports. "+err.Error())
+				resp.Diagnostics.AddAttributeError(path.Root("ports"), "Unable to set ports", "Unable to set ports. "+err.Error())
 			}
 
 			err = r.client.ProxyEnable(ctx, appName)
 			if err != nil {
-				resp.Diagnostics.AddAttributeError(path.Root("proxy_ports"), "Unable to enable proxy ports", "Unable to enable proxy ports. "+err.Error())
+				resp.Diagnostics.AddAttributeError(path.Root("ports"), "Unable to enable ports", "Unable to enable ports. "+err.Error())
 			}
 		}
 	}
