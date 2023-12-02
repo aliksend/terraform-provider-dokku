@@ -27,14 +27,28 @@ provider "dokku" {
 
 ### Optional
 
-- `fail_on_untested_version` (Boolean)
-- `log_ssh_commands` (Boolean) Print SSH commands with ERROR verbose
-- `scp_cert` (String) Cert for username that will be used to copy files to server. Default: ssh_cert value
-- `scp_user` (String) Username that will be used to copy files to server. If not set then scp feature will be disabled
-- `ssh_cert` (String) Certificate to use. Supported formats:
+- `log_ssh_commands` (Boolean) Print SSH commands with ERROR level
+- `ssh_cert` (String) Certificate to use. Default: ~/.ssh/id_rsa
+
+Supported formats:
 - file:/a or /a or ./a or ~/a - use provided value as path to certificate file
 - env:ABCD or $ABCD - use env var ABCD
 - raw:----.. or ----... - use provided value as raw certificate
-Default: ~/.ssh/id_rsa
 - `ssh_port` (Number) Port to connect to. Default: 22
 - `ssh_user` (String) Username to use. Default: dokku
+- `upload_app_name` (String) This attribute is used to upload local files to remote server using storage.local_directory attribute.
+App name to use for local file synchronization. Default: storage-sync
+
+Since dokku don't allow to upload files directly, workaround is used.
+Algorithm is:
+1. Create helper application, using name, provided in this attribute
+2. Mount desired remote directory as /mnt
+3. Deploy "busybox" docker image deployed to app
+4. [on client side] Create tar archive for local_directory and encode it using base64
+5. Connect to app using "dokku enter" and use a bunch of echo-s to make file "tmp.tar.base64", and then decode and un-tar it to /mnt
+- `upload_split_bytes` (Number) This attribute is used to upload local files to remote server using storage.local_directory attribute.
+Number of bytes to split uploaded base64-encoded tar archive. See details in description to "upload_app_name" attribute. Default: 256
+
+Due to limited length of commands we can't use one echo to copy entire file.
+So we need to split file into parts no larger than upload_split_bytes.
+Don't use big values because if length of command exceed the limit then all operation will hang out.

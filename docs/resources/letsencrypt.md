@@ -24,7 +24,7 @@ resource "dokku_letsencrypt" "demo" {
 
 ### Required
 
-- `app_name` (String) App name to apply letsencrypt to. Requires domain and proxy_ports to be set
+- `app_name` (String) App name to apply letsencrypt to. Requires domain and ports to be set
 - `email` (String) Email to use for letsencrypt
 
 ## Import

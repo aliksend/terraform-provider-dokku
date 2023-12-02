@@ -16,9 +16,21 @@ resource "dokku_app" "demo2" {
     "/var/log" = {
       mount_path = "/var/log"
     }
+    config = {
+      mount_path      = "/app/config"
+      local_directory = "./config"
+    }
   }
 
+  # DEPRECATED use ports instead
   proxy_ports = {
+    80 = {
+      scheme         = "http"
+      container_port = 5000
+    }
+  }
+
+  ports = {
     80 = {
       scheme         = "http"
       container_port = 5000

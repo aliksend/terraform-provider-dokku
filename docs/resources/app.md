@@ -31,9 +31,21 @@ resource "dokku_app" "demo2" {
     "/var/log" = {
       mount_path = "/var/log"
     }
+    config = {
+      mount_path      = "/app/config"
+      local_directory = "./config"
+    }
   }
 
+  # DEPRECATED use ports instead
   proxy_ports = {
+    80 = {
+      scheme         = "http"
+      container_port = 5000
+    }
+  }
+
+  ports = {
     80 = {
       scheme         = "http"
       container_port = 5000
@@ -65,7 +77,10 @@ resource "dokku_app" "demo2" {
 - `docker_options` (Attributes Map) Docker options for app. Keys are options (see [below for nested schema](#nestedatt--docker_options))
 - `domains` (Set of String) Domains setup for app
 - `networks` (Attributes) Network setup for app (see [below for nested schema](#nestedatt--networks))
-- `proxy_ports` (Attributes Map) Proxy ports setup for app. Keys are host ports (see [below for nested schema](#nestedatt--proxy_ports))
+- `ports` (Attributes Map) Ports setup for app. Keys are host ports (see [below for nested schema](#nestedatt--ports))
+- `proxy_ports` (Attributes Map) DEPRECATED. Use "ports" instead.
+
+Proxy ports setup for app. Keys are host ports. (see [below for nested schema](#nestedatt--proxy_ports))
 - `storage` (Attributes Map) Persistent storage setup for app. Keys are storage names or absolute paths to host directories (see [below for nested schema](#nestedatt--storage))
 
 <a id="nestedatt--checks"></a>
@@ -113,6 +128,15 @@ Optional:
 - `initial_network` (String) Name of network to use as initial-network
 
 
+<a id="nestedatt--ports"></a>
+### Nested Schema for `ports`
+
+Required:
+
+- `container_port` (String) Port inside container to proxy
+- `scheme` (String) Scheme to use. Allowed values: http, https
+
+
 <a id="nestedatt--proxy_ports"></a>
 ### Nested Schema for `proxy_ports`
 
@@ -131,7 +155,10 @@ Required:
 
 Optional:
 
-- `local_directory` (String) Now working like a crutch. Uploads local directory to host (always, without checking is it changed). Requires SCP to be configured with user that can call sudo without password
+- `local_directory` (String) Uploads local directory to host (always, without checking is it changed)
+
+Should not be used for uploading large files, because it is slow.
+Also see upload_* attributes in provider configuration.
 
 ## Import
 
