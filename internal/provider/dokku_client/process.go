@@ -6,6 +6,6 @@ import (
 )
 
 func (c *Client) ProcessRestart(ctx context.Context, appName string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("ps:restart %s", appName))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("ps:restart %s", appName))
 	return err
 }

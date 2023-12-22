@@ -7,7 +7,7 @@ import (
 )
 
 func (c *Client) DockerOptionExists(ctx context.Context, appName string, phase string, value string) (bool, error) {
-	stdout, _, err := c.Run(ctx, fmt.Sprintf("docker-options:report %s", appName))
+	stdout, _, err := c.RunQuiet(ctx, fmt.Sprintf("docker-options:report %s", appName))
 	if err != nil {
 		return false, err
 	}
@@ -30,11 +30,11 @@ func (c *Client) DockerOptionExists(ctx context.Context, appName string, phase s
 }
 
 func (c *Client) DockerOptionAdd(ctx context.Context, appName string, phases []string, value string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("docker-options:add %s %s %s", appName, strings.Join(phases, ","), value))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("docker-options:add %s %s %s", appName, strings.Join(phases, ","), value))
 	return err
 }
 
 func (c *Client) DockerOptionRemove(ctx context.Context, appName string, phases []string, value string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("docker-options:remove %s %s %s", appName, strings.Join(phases, ","), value))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("docker-options:remove %s %s %s", appName, strings.Join(phases, ","), value))
 	return err
 }

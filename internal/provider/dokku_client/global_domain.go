@@ -7,7 +7,7 @@ import (
 )
 
 func (c *Client) GlobalDomainExists(ctx context.Context, domain string) (bool, error) {
-	stdout, _, err := c.Run(ctx, "domains:report --global")
+	stdout, _, err := c.RunQuiet(ctx, "domains:report --global")
 	if err != nil {
 		return false, err
 	}
@@ -32,11 +32,11 @@ func (c *Client) GlobalDomainExists(ctx context.Context, domain string) (bool, e
 }
 
 func (c *Client) GlobalDomainAdd(ctx context.Context, domain string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("domains:add-global %s", domain))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("domains:add-global %s", domain))
 	return err
 }
 
 func (c *Client) GlobalDomainRemove(ctx context.Context, domain string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("domains:remove-global %s", domain))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("domains:remove-global %s", domain))
 	return err
 }

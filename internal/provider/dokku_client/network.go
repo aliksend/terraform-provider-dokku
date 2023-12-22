@@ -7,7 +7,7 @@ import (
 )
 
 func (c *Client) NetworkExists(ctx context.Context, name string) (bool, error) {
-	stdout, _, err := c.Run(ctx, fmt.Sprintf("network:exists %s", name))
+	stdout, _, err := c.RunQuiet(ctx, fmt.Sprintf("network:exists %s", name))
 	if err != nil {
 		if strings.Contains(stdout, "Network does not exist") {
 			return false, nil
@@ -19,7 +19,7 @@ func (c *Client) NetworkExists(ctx context.Context, name string) (bool, error) {
 }
 
 func (c *Client) NetworksReport(ctx context.Context, name string) (networks map[string]string, err error) {
-	stdout, _, err := c.Run(ctx, fmt.Sprintf("network:report %s", name))
+	stdout, _, err := c.RunQuiet(ctx, fmt.Sprintf("network:report %s", name))
 	if err != nil {
 		return nil, err
 	}
@@ -41,12 +41,12 @@ func (c *Client) NetworksReport(ctx context.Context, name string) (networks map[
 }
 
 func (c *Client) NetworkCreate(ctx context.Context, name string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("network:create %s", name))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("network:create %s", name))
 	return err
 }
 
 func (c *Client) NetworkGetNameForApp(ctx context.Context, appName string, networkType string) (string, error) {
-	stdout, _, err := c.Run(ctx, fmt.Sprintf("network:report %s --network-%s", appName, networkType))
+	stdout, _, err := c.RunQuiet(ctx, fmt.Sprintf("network:report %s --network-%s", appName, networkType))
 	return stdout, err
 }
 
@@ -62,11 +62,11 @@ func (c *Client) NetworkEnsureAndSetForApp(ctx context.Context, appName string, 
 		}
 	}
 
-	_, _, err = c.Run(ctx, fmt.Sprintf("network:set %s %s %s", appName, networkType, name))
+	_, _, err = c.RunQuiet(ctx, fmt.Sprintf("network:set %s %s %s", appName, networkType, name))
 	return err
 }
 
 func (c *Client) NetworkUnsetForApp(ctx context.Context, appName string, networkType string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("network:set %s %s", appName, networkType))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("network:set %s %s", appName, networkType))
 	return err
 }

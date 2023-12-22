@@ -36,6 +36,13 @@ type Client struct {
 
 var mutex = &sync.Mutex{}
 
+// RunQuiet runs any ssh command with "--quiet" flag
+//
+// Deprecated: Use specific methods.
+func (c *Client) RunQuiet(ctx context.Context, cmd string, sensitiveStrings ...string) (stdout string, status int, err error) {
+	return c.Run(ctx, "--quiet "+cmd, sensitiveStrings...)
+}
+
 // Run runs any ssh command
 //
 // Deprecated: Use specific methods.
@@ -55,7 +62,7 @@ func (c *Client) Run(ctx context.Context, cmd string, sensitiveStrings ...string
 		tflog.Debug(ctx, "SSH cmd", map[string]any{"cmd": cmdSafe})
 	}
 
-	stdoutRaw, err := c.client.RunContext(ctx, "--quiet "+cmd)
+	stdoutRaw, err := c.client.RunContext(ctx, cmd)
 
 	stdout = string(stdoutRaw)
 	for _, toReplace := range sensitiveStrings {
@@ -97,7 +104,7 @@ var (
 )
 
 func (c *Client) GetVersion(ctx context.Context) (rawVersion string, parsedVersion semver.Version, err error) {
-	stdout, status, _ := c.Run(ctx, "version")
+	stdout, status, _ := c.RunQuiet(ctx, "version")
 
 	// Check for 127 status code... suggests that we're not authenticating
 	// with a dokku user (see https://github.com/aaronstillwell/terraform-provider-dokku/issues/1)

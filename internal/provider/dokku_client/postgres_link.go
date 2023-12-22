@@ -7,7 +7,7 @@ import (
 )
 
 func (c *Client) PostgresLinkExists(ctx context.Context, serviceName string, appName string) (bool, error) {
-	stdout, _, err := c.Run(ctx, fmt.Sprintf("postgres:linked %s %s", serviceName, appName))
+	stdout, _, err := c.RunQuiet(ctx, fmt.Sprintf("postgres:linked %s %s", serviceName, appName))
 	if err != nil {
 		if strings.Contains(stdout, fmt.Sprintf("Service %s is not linked to %s", serviceName, appName)) {
 			return false, nil
@@ -21,11 +21,11 @@ func (c *Client) PostgresLinkExists(ctx context.Context, serviceName string, app
 }
 
 func (c *Client) PostgresLinkCreate(ctx context.Context, serviceName string, appName string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("postgres:link %s %s", serviceName, appName))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("postgres:link %s %s", serviceName, appName))
 	return err
 }
 
 func (c *Client) PostgresLinkRemove(ctx context.Context, serviceName string, appName string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("postgres:unlink %s %s", serviceName, appName))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("postgres:unlink %s %s", serviceName, appName))
 	return err
 }

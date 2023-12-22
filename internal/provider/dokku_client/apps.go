@@ -7,12 +7,12 @@ import (
 )
 
 func (c *Client) AppCreate(ctx context.Context, appName string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("apps:create %s", appName))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("apps:create %s", appName))
 	return err
 }
 
 func (c *Client) AppExists(ctx context.Context, appName string) (bool, error) {
-	stdout, _, err := c.Run(ctx, fmt.Sprintf("apps:exists %s", appName))
+	stdout, _, err := c.RunQuiet(ctx, fmt.Sprintf("apps:exists %s", appName))
 	if err != nil {
 		if strings.Contains(stdout, fmt.Sprintf("App %s does not exist", appName)) {
 			return false, nil
@@ -23,6 +23,6 @@ func (c *Client) AppExists(ctx context.Context, appName string) (bool, error) {
 }
 
 func (c *Client) AppDestroy(ctx context.Context, appName string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("apps:destroy %s --force", appName))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("apps:destroy %s --force", appName))
 	return err
 }

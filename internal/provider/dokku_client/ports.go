@@ -35,7 +35,7 @@ func (c *Client) PortsExport(ctx context.Context, appName string) (res []Port, e
 		command = "ports:list"
 	}
 
-	stdout, _, err := c.Run(ctx, fmt.Sprintf("%s %s", command, appName))
+	stdout, _, err := c.RunQuiet(ctx, fmt.Sprintf("%s %s", command, appName))
 	if err != nil {
 		if strings.Contains(stdout, "No port mappings configured for app") {
 			return nil, nil
@@ -68,12 +68,12 @@ func (c *Client) PortsExport(ctx context.Context, appName string) (res []Port, e
 }
 
 func (c *Client) PortRemove(ctx context.Context, appName string, hostPort int64) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("%s %s %d", c.portsCommand("remove"), appName, hostPort))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("%s %s %d", c.portsCommand("remove"), appName, hostPort))
 	return err
 }
 
 func (c *Client) PortAdd(ctx context.Context, appName string, scheme string, hostPort int64, containerPort int64) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("%s %s %s:%d:%d", c.portsCommand("add"), appName, scheme, hostPort, containerPort))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("%s %s %s:%d:%d", c.portsCommand("add"), appName, scheme, hostPort, containerPort))
 	return err
 }
 
@@ -82,11 +82,11 @@ func (c *Client) PortsSet(ctx context.Context, appName string, ports []Port) err
 	for _, p := range ports {
 		portsStr = fmt.Sprintf("%s %s:%s:%s", portsStr, p.Scheme, p.HostPort, p.ContainerPort)
 	}
-	_, _, err := c.Run(ctx, fmt.Sprintf("%s %s %s", c.portsCommand("set"), appName, portsStr))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("%s %s %s", c.portsCommand("set"), appName, portsStr))
 	return err
 }
 
 func (c *Client) PortsClear(ctx context.Context, appName string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("%s %s", c.portsCommand("clear"), appName))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("%s %s", c.portsCommand("clear"), appName))
 	return err
 }

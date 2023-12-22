@@ -21,7 +21,7 @@ import (
 const hostStoragePrefix = "/var/lib/dokku/data/storage/"
 
 func (c *Client) StorageExport(ctx context.Context, appName string) (res map[string]string, err error) {
-	stdout, _, err := c.Run(ctx, fmt.Sprintf("storage:list %s", appName))
+	stdout, _, err := c.RunQuiet(ctx, fmt.Sprintf("storage:list %s", appName))
 	if err != nil {
 		return nil, err
 	}
@@ -57,18 +57,18 @@ func getPathToMount(name string) string {
 }
 
 func (c *Client) StorageMount(ctx context.Context, appName string, name string, mountPath string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("storage:mount %s %s:%s", appName, getPathToMount(name), mountPath))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("storage:mount %s %s:%s", appName, getPathToMount(name), mountPath))
 	return err
 }
 
 func (c *Client) StorageUnmount(ctx context.Context, appName string, name string, mountPath string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("storage:unmount %s %s:%s", appName, getPathToMount(name), mountPath))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("storage:unmount %s %s:%s", appName, getPathToMount(name), mountPath))
 	return err
 }
 
 func (c *Client) storageEnsureDirectory(ctx context.Context, name string) error {
 	if name != "" && name[0] != '/' {
-		_, _, err := c.Run(ctx, fmt.Sprintf("storage:ensure-directory %s", name))
+		_, _, err := c.RunQuiet(ctx, fmt.Sprintf("storage:ensure-directory %s", name))
 		if err != nil {
 			return err
 		}

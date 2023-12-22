@@ -7,7 +7,7 @@ import (
 )
 
 func (c *Client) DeployUnsetSourceImage(ctx context.Context, appName string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("git:set %s source-image", appName))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("git:set %s source-image", appName))
 	return err
 }
 

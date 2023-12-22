@@ -19,12 +19,12 @@ func (c *Client) ChecksSet(ctx context.Context, appName string, status string) e
 		return fmt.Errorf("Invalid status value. Valid values are: enabled, disabled, skipped")
 	}
 
-	_, _, err := c.Run(ctx, fmt.Sprintf("checks:%s %s", action, appName))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("checks:%s %s", action, appName))
 	return err
 }
 
 func (c *Client) ChecksGet(ctx context.Context, appName string) (status string, err error) {
-	stdout, _, err := c.Run(ctx, fmt.Sprintf("checks:report %s", appName))
+	stdout, _, err := c.RunQuiet(ctx, fmt.Sprintf("checks:report %s", appName))
 	if err != nil {
 		return "", err
 	}

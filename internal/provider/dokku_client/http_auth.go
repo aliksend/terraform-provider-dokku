@@ -7,7 +7,7 @@ import (
 )
 
 func (c *Client) HttpAuthReport(ctx context.Context, appName string) (enabled bool, users []string, err error) {
-	stdout, _, err := c.Run(ctx, fmt.Sprintf("http-auth:report %s", appName))
+	stdout, _, err := c.RunQuiet(ctx, fmt.Sprintf("http-auth:report %s", appName))
 	if err != nil {
 		return false, nil, err
 	}
@@ -30,21 +30,21 @@ func (c *Client) HttpAuthReport(ctx context.Context, appName string) (enabled bo
 }
 
 func (c *Client) HttpAuthDisable(ctx context.Context, appName string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("http-auth:disable %s", appName))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("http-auth:disable %s", appName))
 	return err
 }
 
 func (c *Client) HttpAuthEnable(ctx context.Context, appName string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("http-auth:enable %s", appName))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("http-auth:enable %s", appName))
 	return err
 }
 
 func (c *Client) HttpAuthAddUser(ctx context.Context, appName string, user string, password string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("http-auth:add-user %s %s %s", appName, user, password), password)
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("http-auth:add-user %s %s %s", appName, user, password), password)
 	return err
 }
 
 func (c *Client) HttpAuthRemoveUser(ctx context.Context, appName string, user string) error {
-	_, _, err := c.Run(ctx, fmt.Sprintf("http-auth:remove-user %s %s", appName, user))
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("http-auth:remove-user %s %s", appName, user))
 	return err
 }

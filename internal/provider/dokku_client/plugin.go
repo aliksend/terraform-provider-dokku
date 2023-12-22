@@ -6,7 +6,7 @@ import (
 )
 
 func (c *Client) PluginIsInstalled(ctx context.Context, pluginNameToFind string) (bool, error) {
-	stdout, _, err := c.Run(ctx, "plugin:list")
+	stdout, _, err := c.RunQuiet(ctx, "plugin:list")
 	if err != nil {
 		return false, err
 	}
