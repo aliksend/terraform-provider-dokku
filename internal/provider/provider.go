@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
+	"terraform-provider-dokku/internal/provider/services"
 
 	"github.com/blang/semver"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
@@ -300,8 +301,29 @@ func (p *dokkuProvider) Resources(ctx context.Context) []func() resource.Resourc
 		NewHttpAuthResource,
 		NewLetsencryptResource,
 		NewPluginResource,
-		NewPostgresLinkResource,
-		NewPostgresResource,
+
+		services.NewClickhouseLinkResource,
+		services.NewClickhouseResource,
+		services.NewCouchDBLinkResource,
+		services.NewCouchDBResource,
+		services.NewElasticsearchLinkResource,
+		services.NewElasticsearchResource,
+		services.NewMariaDBLinkResource,
+		services.NewMariaDBResource,
+		services.NewMongoLinkResource,
+		services.NewMongoResource,
+		services.NewMysqlLinkResource,
+		services.NewMysqlResource,
+		services.NewNatsLinkResource,
+		services.NewNatsResource,
+		services.NewPostgresLinkResource,
+		services.NewPostgresResource,
+		services.NewRabbitMQLinkResource,
+		services.NewRabbitMQResource,
+		services.NewRedisLinkResource,
+		services.NewRedisResource,
+		services.NewRethinkDBLinkResource,
+		services.NewRethinkDBResource,
 	}
 }
 

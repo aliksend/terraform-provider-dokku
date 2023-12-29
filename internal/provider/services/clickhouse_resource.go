@@ -1,4 +1,4 @@
-package provider
+package services
 
 import (
 	"context"
@@ -17,30 +17,30 @@ import (
 )
 
 var (
-	_ resource.Resource                = &postgresResource{}
-	_ resource.ResourceWithConfigure   = &postgresResource{}
-	_ resource.ResourceWithImportState = &postgresResource{}
+	_ resource.Resource                = &chickhouseResource{}
+	_ resource.ResourceWithConfigure   = &chickhouseResource{}
+	_ resource.ResourceWithImportState = &chickhouseResource{}
 )
 
-func NewPostgresResource() resource.Resource {
-	return &postgresResource{}
+func NewClickhouseResource() resource.Resource {
+	return &chickhouseResource{}
 }
 
-type postgresResource struct {
+type chickhouseResource struct {
 	client *dokkuclient.Client
 }
 
-type postgresResourceModel struct {
+type chickhouseResourceModel struct {
 	ServiceName types.String `tfsdk:"service_name"`
 }
 
 // Metadata returns the resource type name.
-func (r *postgresResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_postgres"
+func (r *chickhouseResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_chickhouse"
 }
 
 // Configure adds the provider configured client to the resource.
-func (r *postgresResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *chickhouseResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -50,7 +50,7 @@ func (r *postgresResource) Configure(_ context.Context, req resource.ConfigureRe
 }
 
 // Schema defines the schema for the resource.
-func (r *postgresResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *chickhouseResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"service_name": schema.StringAttribute{
@@ -68,9 +68,9 @@ func (r *postgresResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *postgresResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *chickhouseResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state postgresResourceModel
+	var state chickhouseResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -78,9 +78,9 @@ func (r *postgresResource) Read(ctx context.Context, req resource.ReadRequest, r
 	}
 
 	// Check service existence
-	exists, err := r.client.PostgresServiceExists(ctx, state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "clickhouse", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check postgres service existence", "Unable to check postgres service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check chickhouse service existence", "Unable to check chickhouse service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -97,9 +97,9 @@ func (r *postgresResource) Read(ctx context.Context, req resource.ReadRequest, r
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *postgresResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *chickhouseResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
-	var plan postgresResourceModel
+	var plan chickhouseResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -107,19 +107,19 @@ func (r *postgresResource) Create(ctx context.Context, req resource.CreateReques
 	}
 
 	// Create service is not exists
-	exists, err := r.client.PostgresServiceExists(ctx, plan.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "clickhouse", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check postgres service existence", "Unable to check postgres service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check chickhouse service existence", "Unable to check chickhouse service existence. "+err.Error())
 		return
 	}
 	if exists {
-		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Postgres service already exists", "Postgres service already exists")
+		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Clickhouse service already exists", "Clickhouse service already exists")
 		return
 	}
 
-	err = r.client.PostgresServiceCreate(ctx, plan.ServiceName.ValueString())
+	err = r.client.SimpleServiceCreate(ctx, "clickhouse", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to create postgres service", "Unable to create postgres service. "+err.Error())
+		resp.Diagnostics.AddError("Unable to create chickhouse service", "Unable to create chickhouse service. "+err.Error())
 		return
 	}
 
@@ -132,14 +132,14 @@ func (r *postgresResource) Create(ctx context.Context, req resource.CreateReques
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *postgresResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *chickhouseResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *postgresResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *chickhouseResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
-	var state postgresResourceModel
+	var state chickhouseResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -147,9 +147,9 @@ func (r *postgresResource) Delete(ctx context.Context, req resource.DeleteReques
 	}
 
 	// Check service existence
-	exists, err := r.client.PostgresServiceExists(ctx, state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "clickhouse", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check postgres service existence", "Unable to check postgres service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check chickhouse service existence", "Unable to check chickhouse service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -157,14 +157,14 @@ func (r *postgresResource) Delete(ctx context.Context, req resource.DeleteReques
 	}
 
 	// Destroy instance
-	err = r.client.PostgresServiceDestroy(ctx, state.ServiceName.ValueString())
+	err = r.client.SimpleServiceDestroy(ctx, "clickhouse", state.ServiceName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to destroy service", "Unable to destroy service. "+err.Error())
 		return
 	}
 }
 
-func (r *postgresResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *chickhouseResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Retrieve import ID and save to service_name attribute
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_name"), req.ID)...)
 }
