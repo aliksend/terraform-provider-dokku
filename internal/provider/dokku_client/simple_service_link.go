@@ -9,7 +9,7 @@ import (
 func (c *Client) SimpleServiceLinkExists(ctx context.Context, servicePluginName string, serviceName string, appName string) (bool, error) {
 	stdout, _, err := c.RunQuiet(ctx, fmt.Sprintf("%s:linked %s %s", servicePluginName, serviceName, appName))
 	if err != nil {
-		if strings.Contains(stdout, fmt.Sprintf("Service %s (%s) is not linked to %s", serviceName, servicePluginName, appName)) {
+		if strings.Contains(stdout, fmt.Sprintf("Service %s is not linked to %s", serviceName, appName)) {
 			return false, nil
 		}
 		if strings.Contains(stdout, fmt.Sprintf("App %s does not exist", appName)) {

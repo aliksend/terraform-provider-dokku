@@ -9,7 +9,7 @@ import (
 func (c *Client) SimpleServiceExists(ctx context.Context, servicePluginName string, serviceName string) (bool, error) {
 	stdout, _, err := c.RunQuiet(ctx, fmt.Sprintf("%s:exists %s", servicePluginName, serviceName))
 	if err != nil {
-		if strings.Contains(stdout, fmt.Sprintf("%s service %s does not exist", servicePluginName, serviceName)) {
+		if strings.Contains(stdout, fmt.Sprintf("service %s does not exist", serviceName)) {
 			return false, nil
 		}
 
