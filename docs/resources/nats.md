@@ -19,4 +19,8 @@ description: |-
 
 - `service_name` (String) Service name to create
 
+### Optional
+
+- `config_options` (String) Config options to create service with
+
 

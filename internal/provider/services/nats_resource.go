@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 var (
@@ -31,7 +32,8 @@ type natsResource struct {
 }
 
 type natsResourceModel struct {
-	ServiceName types.String `tfsdk:"service_name"`
+	ServiceName   types.String `tfsdk:"service_name"`
+	ConfigOptions types.String `tfsdk:"config_options"`
 }
 
 // Metadata returns the resource type name.
@@ -63,6 +65,16 @@ func (r *natsResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-z][a-z0-9-]*$`), "invalid service_name"),
 				},
 			},
+			"config_options": schema.StringAttribute{
+				Optional:    true,
+				Description: "Config options to create service with",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
+			},
 		},
 	}
 }
@@ -86,6 +98,17 @@ func (r *natsResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	if !exists {
 		resp.State.RemoveResource(ctx)
 		return
+	}
+
+	info, err := r.client.SimpleServiceInfo(ctx, "nats", state.ServiceName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to get nats service info", "Unable to get nats service info. "+err.Error())
+		return
+	}
+	if info["Config options"] != "" {
+		state.ConfigOptions = basetypes.NewStringValue(info["Config options"])
+	} else {
+		state.ConfigOptions = basetypes.NewStringNull()
 	}
 
 	// Set refreshed state
@@ -117,7 +140,11 @@ func (r *natsResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	err = r.client.SimpleServiceCreate(ctx, "nats", plan.ServiceName.ValueString())
+	var args []string
+	if !plan.ConfigOptions.IsNull() {
+		args = append(args, "--config-options", plan.ConfigOptions.ValueString())
+	}
+	err = r.client.SimpleServiceCreate(ctx, "nats", plan.ServiceName.ValueString(), args...)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to create nats service", "Unable to create nats service. "+err.Error())
 		return
