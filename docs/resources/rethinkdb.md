@@ -18,5 +18,3 @@ description: |-
 ### Required
 
 - `service_name` (String) Service name to create
-
-
