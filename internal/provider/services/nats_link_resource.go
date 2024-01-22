@@ -34,6 +34,7 @@ type natsLinkResource struct {
 type natsLinkResourceModel struct {
 	AppName     types.String `tfsdk:"app_name"`
 	ServiceName types.String `tfsdk:"service_name"`
+	Alias       types.String `tfsdk:"alias"`
 }
 
 // Metadata returns the resource type name.
@@ -73,6 +74,16 @@ func (r *natsLinkResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				},
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-z][a-z0-9-]*$`), "invalid service_name"),
+				},
+			},
+			"alias": schema.StringAttribute{
+				Optional:    true,
+				Description: "Alias is dokku's resource alias to provide as env XXXX_URL",
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(regexp.MustCompile(`^[A-Z_]+$`), "invalid alias"),
+				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
 				},
 			},
 		},
@@ -151,8 +162,13 @@ func (r *natsLinkResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
+	args := make([]string, 0)
+	if !plan.Alias.IsNull() {
+		args = append(args, dokkuclient.DoubleDashArg("alias", plan.Alias.ValueString()))
+	}
+
 	// Create link
-	err = r.client.SimpleServiceLinkCreate(ctx, "nats", plan.ServiceName.ValueString(), plan.AppName.ValueString())
+	err = r.client.SimpleServiceLinkCreate(ctx, "nats", plan.ServiceName.ValueString(), plan.AppName.ValueString(), args...)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to create nats link", "Unable to create nats link. "+err.Error())
 		return
@@ -213,4 +229,7 @@ func (r *natsLinkResource) ImportState(ctx context.Context, req resource.ImportS
 	parts := strings.Split(req.ID, " ")
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), parts[0])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_name"), parts[1])...)
+	if len(parts) == 3 {
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("alias"), parts[2])...)
+	}
 }

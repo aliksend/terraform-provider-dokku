@@ -22,5 +22,3 @@ description: |-
 ### Optional
 
 - `config_options` (String) Config options to create service with
-
-

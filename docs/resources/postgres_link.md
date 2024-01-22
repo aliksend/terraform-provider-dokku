@@ -24,6 +24,7 @@ resource "dokku_app" "demo" {
 resource "dokku_postgres_link" "demo" {
   app_name     = "demo-app"
   service_name = "demo-service"
+  alias        = "DATABASE"
 }
 ```
 
@@ -34,6 +35,10 @@ resource "dokku_postgres_link" "demo" {
 
 - `app_name` (String) App name to apply link service to
 - `service_name` (String) Service name to link
+
+### Optional
+
+- `alias` (String) Alias is dokku's resource alias to provide as env XXXX_URL
 
 ## Import
 
