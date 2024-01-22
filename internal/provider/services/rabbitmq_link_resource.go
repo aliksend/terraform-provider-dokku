@@ -34,6 +34,7 @@ type rabbitMQLinkResource struct {
 type rabbitMQLinkResourceModel struct {
 	AppName     types.String `tfsdk:"app_name"`
 	ServiceName types.String `tfsdk:"service_name"`
+	Alias       types.String `tfsdk:"alias"`
 }
 
 // Metadata returns the resource type name.
@@ -73,6 +74,13 @@ func (r *rabbitMQLinkResource) Schema(_ context.Context, _ resource.SchemaReques
 				},
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-z][a-z0-9-]*$`), "invalid service_name"),
+				},
+			},
+			"alias": schema.StringAttribute{
+				Optional:    true,
+				Description: "Alias is dokku's resource alias to provide as env XXXX_URL",
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(regexp.MustCompile(`^[A-Z]*$`), "invalid alias"),
 				},
 			},
 		},
@@ -151,8 +159,13 @@ func (r *rabbitMQLinkResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
+	args := make([]string, 0)
+	if !plan.Alias.IsNull() {
+		args = append(args, dokkuclient.DoubleLineArg("alias", plan.Alias.ValueString()))
+	}
+
 	// Create link
-	err = r.client.SimpleServiceLinkCreate(ctx, "rabbitmq", plan.ServiceName.ValueString(), plan.AppName.ValueString())
+	err = r.client.SimpleServiceLinkCreate(ctx, "rabbitmq", plan.ServiceName.ValueString(), plan.AppName.ValueString(), args...)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to create rabbitMQ link", "Unable to create rabbitMQ link. "+err.Error())
 		return
@@ -213,4 +226,7 @@ func (r *rabbitMQLinkResource) ImportState(ctx context.Context, req resource.Imp
 	parts := strings.Split(req.ID, " ")
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), parts[0])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_name"), parts[1])...)
+	if len(parts) == 3 {
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("alias"), parts[2])...)
+	}
 }

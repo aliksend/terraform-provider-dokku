@@ -20,8 +20,8 @@ func (c *Client) SimpleServiceLinkExists(ctx context.Context, servicePluginName 
 	return true, nil
 }
 
-func (c *Client) SimpleServiceLinkCreate(ctx context.Context, servicePluginName string, serviceName string, appName string) error {
-	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("%s:link %s %s", servicePluginName, serviceName, appName))
+func (c *Client) SimpleServiceLinkCreate(ctx context.Context, servicePluginName string, serviceName string, appName string, args ...string) error {
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("%s:link %s %s %s", servicePluginName, serviceName, appName, strings.Join(args, " ")))
 	return err
 }
 
