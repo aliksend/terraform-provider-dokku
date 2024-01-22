@@ -161,7 +161,7 @@ func (r *elasticsearchLinkResource) Create(ctx context.Context, req resource.Cre
 
 	args := make([]string, 0)
 	if !plan.Alias.IsNull() {
-		args = append(args, dokkuclient.DoubleLineArg("alias", plan.Alias.ValueString()))
+		args = append(args, dokkuclient.DoubleDashArg("alias", plan.Alias.ValueString()))
 	}
 
 	// Create link
