@@ -80,7 +80,7 @@ func (r *natsLinkResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				Optional:    true,
 				Description: "Alias is dokku's resource alias to provide as env XXXX_URL",
 				Validators: []validator.String{
-					stringvalidator.RegexMatches(regexp.MustCompile(`^[A-Z_]*$`), "invalid alias"),
+					stringvalidator.RegexMatches(regexp.MustCompile(`^[A-Z_]+$`), "invalid alias"),
 				},
 			},
 		},
