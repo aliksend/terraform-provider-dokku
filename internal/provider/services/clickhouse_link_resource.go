@@ -80,7 +80,7 @@ func (r *clickhouseLinkResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Optional:    true,
 				Description: "Alias is dokku's resource alias to provide as env XXXX_URL",
 				Validators: []validator.String{
-					stringvalidator.RegexMatches(regexp.MustCompile(`^[A-Z]*$`), "invalid alias"),
+					stringvalidator.RegexMatches(regexp.MustCompile(`^[A-Z_]*$`), "invalid alias"),
 				},
 			},
 		},
