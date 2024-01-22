@@ -82,6 +82,9 @@ func (r *rethinkDBLinkResource) Schema(_ context.Context, _ resource.SchemaReque
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(regexp.MustCompile(`^[A-Z_]+$`), "invalid alias"),
 				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 		},
 	}

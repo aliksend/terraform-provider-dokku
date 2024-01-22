@@ -82,6 +82,9 @@ func (r *mysqlLinkResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(regexp.MustCompile(`^[A-Z_]+$`), "invalid alias"),
 				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 		},
 	}
