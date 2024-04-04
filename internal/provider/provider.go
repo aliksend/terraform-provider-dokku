@@ -270,7 +270,7 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		return
 	}
 
-	testedVersions := ">=0.24.0 < 0.33.0"
+	testedVersions := ">=0.24.0 <= 0.34.3"
 	testedErrMsg := fmt.Sprintf("This provider has not been tested against Dokku version %s. Tested version range: %s", rawVersion, testedVersions)
 
 	if err == nil {

@@ -619,7 +619,7 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 
 	if len(plan.Ports) != 0 || len(plan.ProxyPorts) != 0 {
 		if len(plan.ProxyPorts) > 0 {
-			resp.Diagnostics.AddAttributeWarning(path.Root("proxy_ports"), "proxy_ports attribute is deprecated, use porst attribute instead", "proxy_ports attribute is deprecated, use porst attribute instead")
+			resp.Diagnostics.AddAttributeWarning(path.Root("proxy_ports"), "proxy_ports attribute is deprecated, use ports attribute instead", "proxy_ports attribute is deprecated, use ports attribute instead")
 		}
 
 		var ports []dokkuclient.Port
@@ -872,7 +872,7 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 
 	// -- ports
 	if len(plan.ProxyPorts) > 0 {
-		resp.Diagnostics.AddAttributeWarning(path.Root("proxy_ports"), "proxy_ports attribute is deprecated, use porst attribute instead", "proxy_ports attribute is deprecated, use porst attribute instead")
+		resp.Diagnostics.AddAttributeWarning(path.Root("proxy_ports"), "proxy_ports attribute is deprecated, use ports attribute instead", "proxy_ports attribute is deprecated, use ports attribute instead")
 	}
 	needToSetPorts := false
 	var portsToSet []dokkuclient.Port

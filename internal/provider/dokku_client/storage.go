@@ -174,7 +174,7 @@ func (c *Client) makeTarArchiveForDirectory(ctx context.Context, localDirectory 
 func (c *Client) storageSyncDirectories(ctx context.Context, storageName string, localDirectory string, remoteDirectory string) error {
 	tflog.Debug(ctx, "Uploading local directory to remote", map[string]any{"local_directory": localDirectory, "remote_directory": remoteDirectory})
 
-	appName := c.uploadAppName
+	appName := fmt.Sprintf("%s--%s", c.uploadAppName, randStringBytes(8))
 	err := c.AppCreate(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("unable to create app: %w", err)
