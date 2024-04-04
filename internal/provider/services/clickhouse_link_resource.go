@@ -164,7 +164,7 @@ func (r *clickhouseLinkResource) Create(ctx context.Context, req resource.Create
 
 	args := make([]string, 0)
 	if !plan.Alias.IsNull() {
-		args = append(args, dokkuclient.DoubleDashArg("alias", plan.Alias.ValueString()))
+		args = append(args, dokkuclient.DoubleDashArg("alias", plan.Alias))
 	}
 
 	// Create link

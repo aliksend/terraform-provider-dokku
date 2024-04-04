@@ -142,7 +142,7 @@ func (r *natsResource) Create(ctx context.Context, req resource.CreateRequest, r
 
 	var args []string
 	if !plan.ConfigOptions.IsNull() {
-		args = append(args, "--config-options", plan.ConfigOptions.ValueString())
+		args = append(args, dokkuclient.DoubleDashArg("config-options", plan.ConfigOptions))
 	}
 	err = r.client.SimpleServiceCreate(ctx, "nats", plan.ServiceName.ValueString(), args...)
 	if err != nil {

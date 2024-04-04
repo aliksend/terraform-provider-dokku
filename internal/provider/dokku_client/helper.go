@@ -5,8 +5,12 @@ import (
 	"math/rand"
 )
 
-func DoubleDashArg[T string](key string, value T) string {
-	return fmt.Sprintf("--%s %s", key, value)
+type ValueString interface {
+	ValueString() string
+}
+
+func DoubleDashArg[T ValueString](key string, value T) string {
+	return fmt.Sprintf("--%s %s", key, value.ValueString())
 }
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyz"
