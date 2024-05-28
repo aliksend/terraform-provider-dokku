@@ -4,7 +4,7 @@ import (
 	"context"
 	"regexp"
 
-	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
+	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -17,30 +17,30 @@ import (
 )
 
 var (
-	_ resource.Resource                = &rabbitMQResource{}
-	_ resource.ResourceWithConfigure   = &rabbitMQResource{}
-	_ resource.ResourceWithImportState = &rabbitMQResource{}
+	_ resource.Resource                = &mariaDBResource{}
+	_ resource.ResourceWithConfigure   = &mariaDBResource{}
+	_ resource.ResourceWithImportState = &mariaDBResource{}
 )
 
-func NewRabbitMQResource() resource.Resource {
-	return &rabbitMQResource{}
+func NewMariaDBResource() resource.Resource {
+	return &mariaDBResource{}
 }
 
-type rabbitMQResource struct {
+type mariaDBResource struct {
 	client *dokkuclient.Client
 }
 
-type rabbitMQResourceModel struct {
+type mariaDBResourceModel struct {
 	ServiceName types.String `tfsdk:"service_name"`
 }
 
 // Metadata returns the resource type name.
-func (r *rabbitMQResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_rabbitmq"
+func (r *mariaDBResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_mariadb"
 }
 
 // Configure adds the provider configured client to the resource.
-func (r *rabbitMQResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *mariaDBResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -50,7 +50,7 @@ func (r *rabbitMQResource) Configure(_ context.Context, req resource.ConfigureRe
 }
 
 // Schema defines the schema for the resource.
-func (r *rabbitMQResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *mariaDBResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"service_name": schema.StringAttribute{
@@ -68,9 +68,9 @@ func (r *rabbitMQResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *rabbitMQResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *mariaDBResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state rabbitMQResourceModel
+	var state mariaDBResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -78,9 +78,9 @@ func (r *rabbitMQResource) Read(ctx context.Context, req resource.ReadRequest, r
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "rabbitmq", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "mariadb", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check rabbitMQ service existence", "Unable to check rabbitMQ service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check mariaDB service existence", "Unable to check mariaDB service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -97,9 +97,9 @@ func (r *rabbitMQResource) Read(ctx context.Context, req resource.ReadRequest, r
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *rabbitMQResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *mariaDBResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
-	var plan rabbitMQResourceModel
+	var plan mariaDBResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -107,19 +107,19 @@ func (r *rabbitMQResource) Create(ctx context.Context, req resource.CreateReques
 	}
 
 	// Create service is not exists
-	exists, err := r.client.SimpleServiceExists(ctx, "rabbitmq", plan.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "mariadb", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check rabbitMQ service existence", "Unable to check rabbitMQ service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check mariaDB service existence", "Unable to check mariaDB service existence. "+err.Error())
 		return
 	}
 	if exists {
-		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "RabbitMQ service already exists", "RabbitMQ service already exists")
+		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "MariaDB service already exists", "MariaDB service already exists")
 		return
 	}
 
-	err = r.client.SimpleServiceCreate(ctx, "rabbitmq", plan.ServiceName.ValueString())
+	err = r.client.SimpleServiceCreate(ctx, "mariadb", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to create rabbitMQ service", "Unable to create rabbitMQ service. "+err.Error())
+		resp.Diagnostics.AddError("Unable to create mariaDB service", "Unable to create mariaDB service. "+err.Error())
 		return
 	}
 
@@ -132,14 +132,14 @@ func (r *rabbitMQResource) Create(ctx context.Context, req resource.CreateReques
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *rabbitMQResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *mariaDBResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *rabbitMQResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *mariaDBResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
-	var state rabbitMQResourceModel
+	var state mariaDBResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -147,9 +147,9 @@ func (r *rabbitMQResource) Delete(ctx context.Context, req resource.DeleteReques
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "rabbitmq", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "mariadb", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check rabbitMQ service existence", "Unable to check rabbitMQ service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check mariaDB service existence", "Unable to check mariaDB service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -157,14 +157,14 @@ func (r *rabbitMQResource) Delete(ctx context.Context, req resource.DeleteReques
 	}
 
 	// Destroy instance
-	err = r.client.SimpleServiceDestroy(ctx, "rabbitmq", state.ServiceName.ValueString())
+	err = r.client.SimpleServiceDestroy(ctx, "mariadb", state.ServiceName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to destroy service", "Unable to destroy service. "+err.Error())
 		return
 	}
 }
 
-func (r *rabbitMQResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *mariaDBResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Retrieve import ID and save to service_name attribute
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_name"), req.ID)...)
 }

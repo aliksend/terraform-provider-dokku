@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
+	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -18,32 +18,32 @@ import (
 )
 
 var (
-	_ resource.Resource                = &rabbitMQLinkResource{}
-	_ resource.ResourceWithConfigure   = &rabbitMQLinkResource{}
-	_ resource.ResourceWithImportState = &rabbitMQLinkResource{}
+	_ resource.Resource                = &mariaDBLinkResource{}
+	_ resource.ResourceWithConfigure   = &mariaDBLinkResource{}
+	_ resource.ResourceWithImportState = &mariaDBLinkResource{}
 )
 
-func NewRabbitMQLinkResource() resource.Resource {
-	return &rabbitMQLinkResource{}
+func NewMariaDBLinkResource() resource.Resource {
+	return &mariaDBLinkResource{}
 }
 
-type rabbitMQLinkResource struct {
+type mariaDBLinkResource struct {
 	client *dokkuclient.Client
 }
 
-type rabbitMQLinkResourceModel struct {
+type mariaDBLinkResourceModel struct {
 	AppName     types.String `tfsdk:"app_name"`
 	ServiceName types.String `tfsdk:"service_name"`
 	Alias       types.String `tfsdk:"alias"`
 }
 
 // Metadata returns the resource type name.
-func (r *rabbitMQLinkResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_rabbitmq_link"
+func (r *mariaDBLinkResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_mariadb_link"
 }
 
 // Configure adds the provider configured client to the resource.
-func (r *rabbitMQLinkResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *mariaDBLinkResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -53,7 +53,7 @@ func (r *rabbitMQLinkResource) Configure(_ context.Context, req resource.Configu
 }
 
 // Schema defines the schema for the resource.
-func (r *rabbitMQLinkResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *mariaDBLinkResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"app_name": schema.StringAttribute{
@@ -91,9 +91,9 @@ func (r *rabbitMQLinkResource) Schema(_ context.Context, _ resource.SchemaReques
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *rabbitMQLinkResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *mariaDBLinkResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state rabbitMQLinkResourceModel
+	var state mariaDBLinkResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -101,20 +101,20 @@ func (r *rabbitMQLinkResource) Read(ctx context.Context, req resource.ReadReques
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "rabbitmq", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "mariadb", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check rabbitMQ service existence", "Unable to check rabbitMQ service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check mariaDB service existence", "Unable to check mariaDB service existence. "+err.Error())
 		return
 	}
 	if !exists {
-		resp.Diagnostics.AddError("Unable to find rabbitMQ service", "Unable to find rabbitMQ service")
+		resp.Diagnostics.AddError("Unable to find mariaDB service", "Unable to find mariaDB service")
 		return
 	}
 
 	// Check link existence
-	exists, err = r.client.SimpleServiceLinkExists(ctx, "rabbitmq", state.ServiceName.ValueString(), state.AppName.ValueString())
+	exists, err = r.client.SimpleServiceLinkExists(ctx, "mariadb", state.ServiceName.ValueString(), state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check rabbitMQ link existence", "Unable to check rabbitMQ link existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check mariaDB link existence", "Unable to check mariaDB link existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -131,9 +131,9 @@ func (r *rabbitMQLinkResource) Read(ctx context.Context, req resource.ReadReques
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *rabbitMQLinkResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *mariaDBLinkResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
-	var plan rabbitMQLinkResourceModel
+	var plan mariaDBLinkResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -141,20 +141,20 @@ func (r *rabbitMQLinkResource) Create(ctx context.Context, req resource.CreateRe
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "rabbitmq", plan.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "mariadb", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check rabbitMQ service existence", "Unable to check rabbitMQ service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check mariaDB service existence", "Unable to check mariaDB service existence. "+err.Error())
 		return
 	}
 	if !exists {
-		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Unable to find rabbitMQ service", "Unable to find rabbitMQ service")
+		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Unable to find mariaDB service", "Unable to find mariaDB service")
 		return
 	}
 
 	// Check link existence
-	exists, err = r.client.SimpleServiceLinkExists(ctx, "rabbitmq", plan.ServiceName.ValueString(), plan.AppName.ValueString())
+	exists, err = r.client.SimpleServiceLinkExists(ctx, "mariadb", plan.ServiceName.ValueString(), plan.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check rabbitMQ link existence", "Unable to check rabbitMQ link existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check mariaDB link existence", "Unable to check mariaDB link existence. "+err.Error())
 		return
 	}
 	if exists {
@@ -168,9 +168,9 @@ func (r *rabbitMQLinkResource) Create(ctx context.Context, req resource.CreateRe
 	}
 
 	// Create link
-	err = r.client.SimpleServiceLinkCreate(ctx, "rabbitmq", plan.ServiceName.ValueString(), plan.AppName.ValueString(), args...)
+	err = r.client.SimpleServiceLinkCreate(ctx, "mariadb", plan.ServiceName.ValueString(), plan.AppName.ValueString(), args...)
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to create rabbitMQ link", "Unable to create rabbitMQ link. "+err.Error())
+		resp.Diagnostics.AddError("Unable to create mariaDB link", "Unable to create mariaDB link. "+err.Error())
 		return
 	}
 
@@ -183,14 +183,14 @@ func (r *rabbitMQLinkResource) Create(ctx context.Context, req resource.CreateRe
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *rabbitMQLinkResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *mariaDBLinkResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *rabbitMQLinkResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *mariaDBLinkResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
-	var state rabbitMQLinkResourceModel
+	var state mariaDBLinkResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -198,9 +198,9 @@ func (r *rabbitMQLinkResource) Delete(ctx context.Context, req resource.DeleteRe
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "rabbitmq", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "mariadb", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check rabbitMQ service existence", "Unable to check rabbitMQ service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check mariaDB service existence", "Unable to check mariaDB service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -208,9 +208,9 @@ func (r *rabbitMQLinkResource) Delete(ctx context.Context, req resource.DeleteRe
 	}
 
 	// Check link existence
-	exists, err = r.client.SimpleServiceLinkExists(ctx, "rabbitmq", state.ServiceName.ValueString(), state.AppName.ValueString())
+	exists, err = r.client.SimpleServiceLinkExists(ctx, "mariadb", state.ServiceName.ValueString(), state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check rabbitMQ link existence", "Unable to check rabbitMQ link existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check mariaDB link existence", "Unable to check mariaDB link existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -218,14 +218,14 @@ func (r *rabbitMQLinkResource) Delete(ctx context.Context, req resource.DeleteRe
 	}
 
 	// Unlink service
-	err = r.client.SimpleServiceLinkRemove(ctx, "rabbitmq", state.ServiceName.ValueString(), state.AppName.ValueString())
+	err = r.client.SimpleServiceLinkRemove(ctx, "mariadb", state.ServiceName.ValueString(), state.AppName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to unlink service from app", "Unable to unlink service from app. "+err.Error())
 		return
 	}
 }
 
-func (r *rabbitMQLinkResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *mariaDBLinkResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	parts := strings.Split(req.ID, " ")
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), parts[0])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_name"), parts[1])...)

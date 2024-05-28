@@ -3,7 +3,7 @@ package provider
 import (
 	"context"
 
-	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
+	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"

@@ -4,7 +4,7 @@ import (
 	"context"
 	"regexp"
 
-	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
+	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -17,30 +17,30 @@ import (
 )
 
 var (
-	_ resource.Resource                = &couchDBResource{}
-	_ resource.ResourceWithConfigure   = &couchDBResource{}
-	_ resource.ResourceWithImportState = &couchDBResource{}
+	_ resource.Resource                = &redisResource{}
+	_ resource.ResourceWithConfigure   = &redisResource{}
+	_ resource.ResourceWithImportState = &redisResource{}
 )
 
-func NewCouchDBResource() resource.Resource {
-	return &couchDBResource{}
+func NewRedisResource() resource.Resource {
+	return &redisResource{}
 }
 
-type couchDBResource struct {
+type redisResource struct {
 	client *dokkuclient.Client
 }
 
-type couchDBResourceModel struct {
+type redisResourceModel struct {
 	ServiceName types.String `tfsdk:"service_name"`
 }
 
 // Metadata returns the resource type name.
-func (r *couchDBResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_couchdb"
+func (r *redisResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_redis"
 }
 
 // Configure adds the provider configured client to the resource.
-func (r *couchDBResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *redisResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -50,7 +50,7 @@ func (r *couchDBResource) Configure(_ context.Context, req resource.ConfigureReq
 }
 
 // Schema defines the schema for the resource.
-func (r *couchDBResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *redisResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"service_name": schema.StringAttribute{
@@ -68,9 +68,9 @@ func (r *couchDBResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *couchDBResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *redisResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state couchDBResourceModel
+	var state redisResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -78,9 +78,9 @@ func (r *couchDBResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "couchdb", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "redis", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check couchDB service existence", "Unable to check couchDB service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check redis service existence", "Unable to check redis service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -97,9 +97,9 @@ func (r *couchDBResource) Read(ctx context.Context, req resource.ReadRequest, re
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *couchDBResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *redisResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
-	var plan couchDBResourceModel
+	var plan redisResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -107,19 +107,19 @@ func (r *couchDBResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	// Create service is not exists
-	exists, err := r.client.SimpleServiceExists(ctx, "couchdb", plan.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "redis", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check couchDB service existence", "Unable to check couchDB service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check redis service existence", "Unable to check redis service existence. "+err.Error())
 		return
 	}
 	if exists {
-		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "CouchDB service already exists", "CouchDB service already exists")
+		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Redis service already exists", "Redis service already exists")
 		return
 	}
 
-	err = r.client.SimpleServiceCreate(ctx, "couchdb", plan.ServiceName.ValueString())
+	err = r.client.SimpleServiceCreate(ctx, "redis", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to create couchDB service", "Unable to create couchDB service. "+err.Error())
+		resp.Diagnostics.AddError("Unable to create redis service", "Unable to create redis service. "+err.Error())
 		return
 	}
 
@@ -132,14 +132,14 @@ func (r *couchDBResource) Create(ctx context.Context, req resource.CreateRequest
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *couchDBResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *redisResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *couchDBResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *redisResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
-	var state couchDBResourceModel
+	var state redisResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -147,9 +147,9 @@ func (r *couchDBResource) Delete(ctx context.Context, req resource.DeleteRequest
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "couchdb", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "redis", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check couchDB service existence", "Unable to check couchDB service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check redis service existence", "Unable to check redis service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -157,14 +157,14 @@ func (r *couchDBResource) Delete(ctx context.Context, req resource.DeleteRequest
 	}
 
 	// Destroy instance
-	err = r.client.SimpleServiceDestroy(ctx, "couchdb", state.ServiceName.ValueString())
+	err = r.client.SimpleServiceDestroy(ctx, "redis", state.ServiceName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to destroy service", "Unable to destroy service. "+err.Error())
 		return
 	}
 }
 
-func (r *couchDBResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *redisResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Retrieve import ID and save to service_name attribute
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_name"), req.ID)...)
 }

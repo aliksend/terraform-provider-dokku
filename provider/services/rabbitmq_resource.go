@@ -4,7 +4,7 @@ import (
 	"context"
 	"regexp"
 
-	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
+	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -17,30 +17,30 @@ import (
 )
 
 var (
-	_ resource.Resource                = &mysqlResource{}
-	_ resource.ResourceWithConfigure   = &mysqlResource{}
-	_ resource.ResourceWithImportState = &mysqlResource{}
+	_ resource.Resource                = &rabbitMQResource{}
+	_ resource.ResourceWithConfigure   = &rabbitMQResource{}
+	_ resource.ResourceWithImportState = &rabbitMQResource{}
 )
 
-func NewMysqlResource() resource.Resource {
-	return &mysqlResource{}
+func NewRabbitMQResource() resource.Resource {
+	return &rabbitMQResource{}
 }
 
-type mysqlResource struct {
+type rabbitMQResource struct {
 	client *dokkuclient.Client
 }
 
-type mysqlResourceModel struct {
+type rabbitMQResourceModel struct {
 	ServiceName types.String `tfsdk:"service_name"`
 }
 
 // Metadata returns the resource type name.
-func (r *mysqlResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_mysql"
+func (r *rabbitMQResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_rabbitmq"
 }
 
 // Configure adds the provider configured client to the resource.
-func (r *mysqlResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *rabbitMQResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -50,7 +50,7 @@ func (r *mysqlResource) Configure(_ context.Context, req resource.ConfigureReque
 }
 
 // Schema defines the schema for the resource.
-func (r *mysqlResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *rabbitMQResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"service_name": schema.StringAttribute{
@@ -68,9 +68,9 @@ func (r *mysqlResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *mysqlResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *rabbitMQResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state mysqlResourceModel
+	var state rabbitMQResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -78,9 +78,9 @@ func (r *mysqlResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "mysql", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "rabbitmq", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check mysql service existence", "Unable to check mysql service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check rabbitMQ service existence", "Unable to check rabbitMQ service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -97,9 +97,9 @@ func (r *mysqlResource) Read(ctx context.Context, req resource.ReadRequest, resp
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *mysqlResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *rabbitMQResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
-	var plan mysqlResourceModel
+	var plan rabbitMQResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -107,19 +107,19 @@ func (r *mysqlResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 
 	// Create service is not exists
-	exists, err := r.client.SimpleServiceExists(ctx, "mysql", plan.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "rabbitmq", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check mysql service existence", "Unable to check mysql service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check rabbitMQ service existence", "Unable to check rabbitMQ service existence. "+err.Error())
 		return
 	}
 	if exists {
-		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Mysql service already exists", "Mysql service already exists")
+		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "RabbitMQ service already exists", "RabbitMQ service already exists")
 		return
 	}
 
-	err = r.client.SimpleServiceCreate(ctx, "mysql", plan.ServiceName.ValueString())
+	err = r.client.SimpleServiceCreate(ctx, "rabbitmq", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to create mysql service", "Unable to create mysql service. "+err.Error())
+		resp.Diagnostics.AddError("Unable to create rabbitMQ service", "Unable to create rabbitMQ service. "+err.Error())
 		return
 	}
 
@@ -132,14 +132,14 @@ func (r *mysqlResource) Create(ctx context.Context, req resource.CreateRequest, 
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *mysqlResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *rabbitMQResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *mysqlResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *rabbitMQResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
-	var state mysqlResourceModel
+	var state rabbitMQResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -147,9 +147,9 @@ func (r *mysqlResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "mysql", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "rabbitmq", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check mysql service existence", "Unable to check mysql service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check rabbitMQ service existence", "Unable to check rabbitMQ service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -157,14 +157,14 @@ func (r *mysqlResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	}
 
 	// Destroy instance
-	err = r.client.SimpleServiceDestroy(ctx, "mysql", state.ServiceName.ValueString())
+	err = r.client.SimpleServiceDestroy(ctx, "rabbitmq", state.ServiceName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to destroy service", "Unable to destroy service. "+err.Error())
 		return
 	}
 }
 
-func (r *mysqlResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *rabbitMQResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Retrieve import ID and save to service_name attribute
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_name"), req.ID)...)
 }

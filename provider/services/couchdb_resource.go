@@ -4,7 +4,7 @@ import (
 	"context"
 	"regexp"
 
-	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
+	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -17,30 +17,30 @@ import (
 )
 
 var (
-	_ resource.Resource                = &chickhouseResource{}
-	_ resource.ResourceWithConfigure   = &chickhouseResource{}
-	_ resource.ResourceWithImportState = &chickhouseResource{}
+	_ resource.Resource                = &couchDBResource{}
+	_ resource.ResourceWithConfigure   = &couchDBResource{}
+	_ resource.ResourceWithImportState = &couchDBResource{}
 )
 
-func NewClickhouseResource() resource.Resource {
-	return &chickhouseResource{}
+func NewCouchDBResource() resource.Resource {
+	return &couchDBResource{}
 }
 
-type chickhouseResource struct {
+type couchDBResource struct {
 	client *dokkuclient.Client
 }
 
-type chickhouseResourceModel struct {
+type couchDBResourceModel struct {
 	ServiceName types.String `tfsdk:"service_name"`
 }
 
 // Metadata returns the resource type name.
-func (r *chickhouseResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_chickhouse"
+func (r *couchDBResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_couchdb"
 }
 
 // Configure adds the provider configured client to the resource.
-func (r *chickhouseResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *couchDBResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -50,7 +50,7 @@ func (r *chickhouseResource) Configure(_ context.Context, req resource.Configure
 }
 
 // Schema defines the schema for the resource.
-func (r *chickhouseResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *couchDBResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"service_name": schema.StringAttribute{
@@ -68,9 +68,9 @@ func (r *chickhouseResource) Schema(_ context.Context, _ resource.SchemaRequest,
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *chickhouseResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *couchDBResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state chickhouseResourceModel
+	var state couchDBResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -78,9 +78,9 @@ func (r *chickhouseResource) Read(ctx context.Context, req resource.ReadRequest,
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "clickhouse", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "couchdb", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check chickhouse service existence", "Unable to check chickhouse service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check couchDB service existence", "Unable to check couchDB service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -97,9 +97,9 @@ func (r *chickhouseResource) Read(ctx context.Context, req resource.ReadRequest,
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *chickhouseResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *couchDBResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
-	var plan chickhouseResourceModel
+	var plan couchDBResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -107,19 +107,19 @@ func (r *chickhouseResource) Create(ctx context.Context, req resource.CreateRequ
 	}
 
 	// Create service is not exists
-	exists, err := r.client.SimpleServiceExists(ctx, "clickhouse", plan.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "couchdb", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check chickhouse service existence", "Unable to check chickhouse service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check couchDB service existence", "Unable to check couchDB service existence. "+err.Error())
 		return
 	}
 	if exists {
-		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Clickhouse service already exists", "Clickhouse service already exists")
+		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "CouchDB service already exists", "CouchDB service already exists")
 		return
 	}
 
-	err = r.client.SimpleServiceCreate(ctx, "clickhouse", plan.ServiceName.ValueString())
+	err = r.client.SimpleServiceCreate(ctx, "couchdb", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to create chickhouse service", "Unable to create chickhouse service. "+err.Error())
+		resp.Diagnostics.AddError("Unable to create couchDB service", "Unable to create couchDB service. "+err.Error())
 		return
 	}
 
@@ -132,14 +132,14 @@ func (r *chickhouseResource) Create(ctx context.Context, req resource.CreateRequ
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *chickhouseResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *couchDBResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *chickhouseResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *couchDBResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
-	var state chickhouseResourceModel
+	var state couchDBResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -147,9 +147,9 @@ func (r *chickhouseResource) Delete(ctx context.Context, req resource.DeleteRequ
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "clickhouse", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "couchdb", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check chickhouse service existence", "Unable to check chickhouse service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check couchDB service existence", "Unable to check couchDB service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -157,14 +157,14 @@ func (r *chickhouseResource) Delete(ctx context.Context, req resource.DeleteRequ
 	}
 
 	// Destroy instance
-	err = r.client.SimpleServiceDestroy(ctx, "clickhouse", state.ServiceName.ValueString())
+	err = r.client.SimpleServiceDestroy(ctx, "couchdb", state.ServiceName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to destroy service", "Unable to destroy service. "+err.Error())
 		return
 	}
 }
 
-func (r *chickhouseResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *couchDBResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Retrieve import ID and save to service_name attribute
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_name"), req.ID)...)
 }

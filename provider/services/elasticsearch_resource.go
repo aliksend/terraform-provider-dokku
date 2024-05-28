@@ -4,7 +4,7 @@ import (
 	"context"
 	"regexp"
 
-	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
+	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -17,30 +17,30 @@ import (
 )
 
 var (
-	_ resource.Resource                = &mariaDBResource{}
-	_ resource.ResourceWithConfigure   = &mariaDBResource{}
-	_ resource.ResourceWithImportState = &mariaDBResource{}
+	_ resource.Resource                = &elasticsearchResource{}
+	_ resource.ResourceWithConfigure   = &elasticsearchResource{}
+	_ resource.ResourceWithImportState = &elasticsearchResource{}
 )
 
-func NewMariaDBResource() resource.Resource {
-	return &mariaDBResource{}
+func NewElasticsearchResource() resource.Resource {
+	return &elasticsearchResource{}
 }
 
-type mariaDBResource struct {
+type elasticsearchResource struct {
 	client *dokkuclient.Client
 }
 
-type mariaDBResourceModel struct {
+type elasticsearchResourceModel struct {
 	ServiceName types.String `tfsdk:"service_name"`
 }
 
 // Metadata returns the resource type name.
-func (r *mariaDBResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_mariadb"
+func (r *elasticsearchResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_elasticsearch"
 }
 
 // Configure adds the provider configured client to the resource.
-func (r *mariaDBResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *elasticsearchResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -50,7 +50,7 @@ func (r *mariaDBResource) Configure(_ context.Context, req resource.ConfigureReq
 }
 
 // Schema defines the schema for the resource.
-func (r *mariaDBResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *elasticsearchResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"service_name": schema.StringAttribute{
@@ -68,9 +68,9 @@ func (r *mariaDBResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *mariaDBResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *elasticsearchResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state mariaDBResourceModel
+	var state elasticsearchResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -78,9 +78,9 @@ func (r *mariaDBResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "mariadb", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "elasticsearch", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check mariaDB service existence", "Unable to check mariaDB service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check elasticsearch service existence", "Unable to check elasticsearch service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -97,9 +97,9 @@ func (r *mariaDBResource) Read(ctx context.Context, req resource.ReadRequest, re
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *mariaDBResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *elasticsearchResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
-	var plan mariaDBResourceModel
+	var plan elasticsearchResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -107,19 +107,19 @@ func (r *mariaDBResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	// Create service is not exists
-	exists, err := r.client.SimpleServiceExists(ctx, "mariadb", plan.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "elasticsearch", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check mariaDB service existence", "Unable to check mariaDB service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check elasticsearch service existence", "Unable to check elasticsearch service existence. "+err.Error())
 		return
 	}
 	if exists {
-		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "MariaDB service already exists", "MariaDB service already exists")
+		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Elasticsearch service already exists", "Elasticsearch service already exists")
 		return
 	}
 
-	err = r.client.SimpleServiceCreate(ctx, "mariadb", plan.ServiceName.ValueString())
+	err = r.client.SimpleServiceCreate(ctx, "elasticsearch", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to create mariaDB service", "Unable to create mariaDB service. "+err.Error())
+		resp.Diagnostics.AddError("Unable to create elasticsearch service", "Unable to create elasticsearch service. "+err.Error())
 		return
 	}
 
@@ -132,14 +132,14 @@ func (r *mariaDBResource) Create(ctx context.Context, req resource.CreateRequest
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *mariaDBResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *elasticsearchResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *mariaDBResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *elasticsearchResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
-	var state mariaDBResourceModel
+	var state elasticsearchResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -147,9 +147,9 @@ func (r *mariaDBResource) Delete(ctx context.Context, req resource.DeleteRequest
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "mariadb", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "elasticsearch", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check mariaDB service existence", "Unable to check mariaDB service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check elasticsearch service existence", "Unable to check elasticsearch service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -157,14 +157,14 @@ func (r *mariaDBResource) Delete(ctx context.Context, req resource.DeleteRequest
 	}
 
 	// Destroy instance
-	err = r.client.SimpleServiceDestroy(ctx, "mariadb", state.ServiceName.ValueString())
+	err = r.client.SimpleServiceDestroy(ctx, "elasticsearch", state.ServiceName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to destroy service", "Unable to destroy service. "+err.Error())
 		return
 	}
 }
 
-func (r *mariaDBResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *elasticsearchResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Retrieve import ID and save to service_name attribute
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_name"), req.ID)...)
 }

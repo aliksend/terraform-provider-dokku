@@ -4,7 +4,7 @@ import (
 	"context"
 	"regexp"
 
-	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
+	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -17,30 +17,30 @@ import (
 )
 
 var (
-	_ resource.Resource                = &rethinkDBResource{}
-	_ resource.ResourceWithConfigure   = &rethinkDBResource{}
-	_ resource.ResourceWithImportState = &rethinkDBResource{}
+	_ resource.Resource                = &mysqlResource{}
+	_ resource.ResourceWithConfigure   = &mysqlResource{}
+	_ resource.ResourceWithImportState = &mysqlResource{}
 )
 
-func NewRethinkDBResource() resource.Resource {
-	return &rethinkDBResource{}
+func NewMysqlResource() resource.Resource {
+	return &mysqlResource{}
 }
 
-type rethinkDBResource struct {
+type mysqlResource struct {
 	client *dokkuclient.Client
 }
 
-type rethinkDBResourceModel struct {
+type mysqlResourceModel struct {
 	ServiceName types.String `tfsdk:"service_name"`
 }
 
 // Metadata returns the resource type name.
-func (r *rethinkDBResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_rethinkdb"
+func (r *mysqlResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_mysql"
 }
 
 // Configure adds the provider configured client to the resource.
-func (r *rethinkDBResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *mysqlResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -50,7 +50,7 @@ func (r *rethinkDBResource) Configure(_ context.Context, req resource.ConfigureR
 }
 
 // Schema defines the schema for the resource.
-func (r *rethinkDBResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *mysqlResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"service_name": schema.StringAttribute{
@@ -68,9 +68,9 @@ func (r *rethinkDBResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *rethinkDBResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *mysqlResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state rethinkDBResourceModel
+	var state mysqlResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -78,9 +78,9 @@ func (r *rethinkDBResource) Read(ctx context.Context, req resource.ReadRequest, 
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "rethinkdb", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "mysql", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check rethinkDB service existence", "Unable to check rethinkDB service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check mysql service existence", "Unable to check mysql service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -97,9 +97,9 @@ func (r *rethinkDBResource) Read(ctx context.Context, req resource.ReadRequest, 
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *rethinkDBResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *mysqlResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
-	var plan rethinkDBResourceModel
+	var plan mysqlResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -107,19 +107,19 @@ func (r *rethinkDBResource) Create(ctx context.Context, req resource.CreateReque
 	}
 
 	// Create service is not exists
-	exists, err := r.client.SimpleServiceExists(ctx, "rethinkdb", plan.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "mysql", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check rethinkDB service existence", "Unable to check rethinkDB service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check mysql service existence", "Unable to check mysql service existence. "+err.Error())
 		return
 	}
 	if exists {
-		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "RethinkDB service already exists", "RethinkDB service already exists")
+		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Mysql service already exists", "Mysql service already exists")
 		return
 	}
 
-	err = r.client.SimpleServiceCreate(ctx, "rethinkdb", plan.ServiceName.ValueString())
+	err = r.client.SimpleServiceCreate(ctx, "mysql", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to create rethinkDB service", "Unable to create rethinkDB service. "+err.Error())
+		resp.Diagnostics.AddError("Unable to create mysql service", "Unable to create mysql service. "+err.Error())
 		return
 	}
 
@@ -132,14 +132,14 @@ func (r *rethinkDBResource) Create(ctx context.Context, req resource.CreateReque
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *rethinkDBResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *mysqlResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *rethinkDBResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *mysqlResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
-	var state rethinkDBResourceModel
+	var state mysqlResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -147,9 +147,9 @@ func (r *rethinkDBResource) Delete(ctx context.Context, req resource.DeleteReque
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "rethinkdb", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "mysql", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check rethinkDB service existence", "Unable to check rethinkDB service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check mysql service existence", "Unable to check mysql service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -157,14 +157,14 @@ func (r *rethinkDBResource) Delete(ctx context.Context, req resource.DeleteReque
 	}
 
 	// Destroy instance
-	err = r.client.SimpleServiceDestroy(ctx, "rethinkdb", state.ServiceName.ValueString())
+	err = r.client.SimpleServiceDestroy(ctx, "mysql", state.ServiceName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to destroy service", "Unable to destroy service. "+err.Error())
 		return
 	}
 }
 
-func (r *rethinkDBResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *mysqlResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Retrieve import ID and save to service_name attribute
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_name"), req.ID)...)
 }

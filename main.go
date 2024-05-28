@@ -7,7 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 
-	"terraform-provider-dokku/internal/provider"
+	"github.com/aliksend/terraform-provider-dokku/provider"
 )
 
 // Run "go generate" to format example terraform files and generate the docs for the registry/website

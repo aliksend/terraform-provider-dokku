@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
-	"terraform-provider-dokku/internal/provider/services"
+	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
+	"github.com/aliksend/terraform-provider-dokku/provider/services"
 
 	"github.com/blang/semver"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"

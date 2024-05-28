@@ -4,7 +4,7 @@ import (
 	"context"
 	"regexp"
 
-	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
+	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -17,30 +17,30 @@ import (
 )
 
 var (
-	_ resource.Resource                = &elasticsearchResource{}
-	_ resource.ResourceWithConfigure   = &elasticsearchResource{}
-	_ resource.ResourceWithImportState = &elasticsearchResource{}
+	_ resource.Resource                = &mongoResource{}
+	_ resource.ResourceWithConfigure   = &mongoResource{}
+	_ resource.ResourceWithImportState = &mongoResource{}
 )
 
-func NewElasticsearchResource() resource.Resource {
-	return &elasticsearchResource{}
+func NewMongoResource() resource.Resource {
+	return &mongoResource{}
 }
 
-type elasticsearchResource struct {
+type mongoResource struct {
 	client *dokkuclient.Client
 }
 
-type elasticsearchResourceModel struct {
+type mongoResourceModel struct {
 	ServiceName types.String `tfsdk:"service_name"`
 }
 
 // Metadata returns the resource type name.
-func (r *elasticsearchResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_elasticsearch"
+func (r *mongoResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_mongo"
 }
 
 // Configure adds the provider configured client to the resource.
-func (r *elasticsearchResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *mongoResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -50,7 +50,7 @@ func (r *elasticsearchResource) Configure(_ context.Context, req resource.Config
 }
 
 // Schema defines the schema for the resource.
-func (r *elasticsearchResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *mongoResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"service_name": schema.StringAttribute{
@@ -68,9 +68,9 @@ func (r *elasticsearchResource) Schema(_ context.Context, _ resource.SchemaReque
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *elasticsearchResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *mongoResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state elasticsearchResourceModel
+	var state mongoResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -78,9 +78,9 @@ func (r *elasticsearchResource) Read(ctx context.Context, req resource.ReadReque
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "elasticsearch", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "mongo", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check elasticsearch service existence", "Unable to check elasticsearch service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check mongo service existence", "Unable to check mongo service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -97,9 +97,9 @@ func (r *elasticsearchResource) Read(ctx context.Context, req resource.ReadReque
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *elasticsearchResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *mongoResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
-	var plan elasticsearchResourceModel
+	var plan mongoResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -107,19 +107,19 @@ func (r *elasticsearchResource) Create(ctx context.Context, req resource.CreateR
 	}
 
 	// Create service is not exists
-	exists, err := r.client.SimpleServiceExists(ctx, "elasticsearch", plan.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "mongo", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check elasticsearch service existence", "Unable to check elasticsearch service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check mongo service existence", "Unable to check mongo service existence. "+err.Error())
 		return
 	}
 	if exists {
-		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Elasticsearch service already exists", "Elasticsearch service already exists")
+		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Mongo service already exists", "Mongo service already exists")
 		return
 	}
 
-	err = r.client.SimpleServiceCreate(ctx, "elasticsearch", plan.ServiceName.ValueString())
+	err = r.client.SimpleServiceCreate(ctx, "mongo", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to create elasticsearch service", "Unable to create elasticsearch service. "+err.Error())
+		resp.Diagnostics.AddError("Unable to create mongo service", "Unable to create mongo service. "+err.Error())
 		return
 	}
 
@@ -132,14 +132,14 @@ func (r *elasticsearchResource) Create(ctx context.Context, req resource.CreateR
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *elasticsearchResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *mongoResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *elasticsearchResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *mongoResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
-	var state elasticsearchResourceModel
+	var state mongoResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -147,9 +147,9 @@ func (r *elasticsearchResource) Delete(ctx context.Context, req resource.DeleteR
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "elasticsearch", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "mongo", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check elasticsearch service existence", "Unable to check elasticsearch service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check mongo service existence", "Unable to check mongo service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -157,14 +157,14 @@ func (r *elasticsearchResource) Delete(ctx context.Context, req resource.DeleteR
 	}
 
 	// Destroy instance
-	err = r.client.SimpleServiceDestroy(ctx, "elasticsearch", state.ServiceName.ValueString())
+	err = r.client.SimpleServiceDestroy(ctx, "mongo", state.ServiceName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to destroy service", "Unable to destroy service. "+err.Error())
 		return
 	}
 }
 
-func (r *elasticsearchResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *mongoResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Retrieve import ID and save to service_name attribute
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_name"), req.ID)...)
 }

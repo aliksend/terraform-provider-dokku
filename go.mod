@@ -1,4 +1,4 @@
-module terraform-provider-dokku
+module github.com/aliksend/terraform-provider-dokku
 
 go 1.21
 

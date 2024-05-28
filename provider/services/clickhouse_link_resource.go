@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
+	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -18,32 +18,32 @@ import (
 )
 
 var (
-	_ resource.Resource                = &postgresLinkResource{}
-	_ resource.ResourceWithConfigure   = &postgresLinkResource{}
-	_ resource.ResourceWithImportState = &postgresLinkResource{}
+	_ resource.Resource                = &clickhouseLinkResource{}
+	_ resource.ResourceWithConfigure   = &clickhouseLinkResource{}
+	_ resource.ResourceWithImportState = &clickhouseLinkResource{}
 )
 
-func NewPostgresLinkResource() resource.Resource {
-	return &postgresLinkResource{}
+func NewClickhouseLinkResource() resource.Resource {
+	return &clickhouseLinkResource{}
 }
 
-type postgresLinkResource struct {
+type clickhouseLinkResource struct {
 	client *dokkuclient.Client
 }
 
-type postgresLinkResourceModel struct {
+type clickhouseLinkResourceModel struct {
 	AppName     types.String `tfsdk:"app_name"`
 	ServiceName types.String `tfsdk:"service_name"`
 	Alias       types.String `tfsdk:"alias"`
 }
 
 // Metadata returns the resource type name.
-func (r *postgresLinkResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_postgres_link"
+func (r *clickhouseLinkResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_clickhouse_link"
 }
 
 // Configure adds the provider configured client to the resource.
-func (r *postgresLinkResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *clickhouseLinkResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -53,7 +53,7 @@ func (r *postgresLinkResource) Configure(_ context.Context, req resource.Configu
 }
 
 // Schema defines the schema for the resource.
-func (r *postgresLinkResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *clickhouseLinkResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"app_name": schema.StringAttribute{
@@ -91,9 +91,9 @@ func (r *postgresLinkResource) Schema(_ context.Context, _ resource.SchemaReques
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *postgresLinkResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *clickhouseLinkResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state postgresLinkResourceModel
+	var state clickhouseLinkResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -101,20 +101,20 @@ func (r *postgresLinkResource) Read(ctx context.Context, req resource.ReadReques
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "postgres", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "clickhouse", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check postgres service existence", "Unable to check postgres service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check clickhouse service existence", "Unable to check clickhouse service existence. "+err.Error())
 		return
 	}
 	if !exists {
-		resp.Diagnostics.AddError("Unable to find postgres service", "Unable to find postgres service")
+		resp.Diagnostics.AddError("Unable to find clickhouse service", "Unable to find clickhouse service")
 		return
 	}
 
 	// Check link existence
-	exists, err = r.client.SimpleServiceLinkExists(ctx, "postgres", state.ServiceName.ValueString(), state.AppName.ValueString())
+	exists, err = r.client.SimpleServiceLinkExists(ctx, "clickhouse", state.ServiceName.ValueString(), state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check postgres link existence", "Unable to check postgres link existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check clickhouse link existence", "Unable to check clickhouse link existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -131,9 +131,9 @@ func (r *postgresLinkResource) Read(ctx context.Context, req resource.ReadReques
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *postgresLinkResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *clickhouseLinkResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
-	var plan postgresLinkResourceModel
+	var plan clickhouseLinkResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -141,20 +141,20 @@ func (r *postgresLinkResource) Create(ctx context.Context, req resource.CreateRe
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "postgres", plan.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "clickhouse", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check postgres service existence", "Unable to check postgres service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check clickhouse service existence", "Unable to check clickhouse service existence. "+err.Error())
 		return
 	}
 	if !exists {
-		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Unable to find postgres service", "Unable to find postgres service")
+		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Unable to find clickhouse service", "Unable to find clickhouse service")
 		return
 	}
 
 	// Check link existence
-	exists, err = r.client.SimpleServiceLinkExists(ctx, "postgres", plan.ServiceName.ValueString(), plan.AppName.ValueString())
+	exists, err = r.client.SimpleServiceLinkExists(ctx, "clickhouse", plan.ServiceName.ValueString(), plan.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check postgres link existence", "Unable to check postgres link existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check clickhouse link existence", "Unable to check clickhouse link existence. "+err.Error())
 		return
 	}
 	if exists {
@@ -168,9 +168,9 @@ func (r *postgresLinkResource) Create(ctx context.Context, req resource.CreateRe
 	}
 
 	// Create link
-	err = r.client.SimpleServiceLinkCreate(ctx, "postgres", plan.ServiceName.ValueString(), plan.AppName.ValueString(), args...)
+	err = r.client.SimpleServiceLinkCreate(ctx, "clickhouse", plan.ServiceName.ValueString(), plan.AppName.ValueString(), args...)
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to create postgres link", "Unable to create postgres link. "+err.Error())
+		resp.Diagnostics.AddError("Unable to create clickhouse link", "Unable to create clickhouse link. "+err.Error())
 		return
 	}
 
@@ -183,14 +183,14 @@ func (r *postgresLinkResource) Create(ctx context.Context, req resource.CreateRe
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *postgresLinkResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *clickhouseLinkResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *postgresLinkResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *clickhouseLinkResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
-	var state postgresLinkResourceModel
+	var state clickhouseLinkResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -198,9 +198,9 @@ func (r *postgresLinkResource) Delete(ctx context.Context, req resource.DeleteRe
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "postgres", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "clickhouse", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check postgres service existence", "Unable to check postgres service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check clickhouse service existence", "Unable to check clickhouse service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -208,9 +208,9 @@ func (r *postgresLinkResource) Delete(ctx context.Context, req resource.DeleteRe
 	}
 
 	// Check link existence
-	exists, err = r.client.SimpleServiceLinkExists(ctx, "postgres", state.ServiceName.ValueString(), state.AppName.ValueString())
+	exists, err = r.client.SimpleServiceLinkExists(ctx, "clickhouse", state.ServiceName.ValueString(), state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check postgres link existence", "Unable to check postgres link existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check clickhouse link existence", "Unable to check clickhouse link existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -218,14 +218,14 @@ func (r *postgresLinkResource) Delete(ctx context.Context, req resource.DeleteRe
 	}
 
 	// Unlink service
-	err = r.client.SimpleServiceLinkRemove(ctx, "postgres", state.ServiceName.ValueString(), state.AppName.ValueString())
+	err = r.client.SimpleServiceLinkRemove(ctx, "clickhouse", state.ServiceName.ValueString(), state.AppName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to unlink service from app", "Unable to unlink service from app. "+err.Error())
 		return
 	}
 }
 
-func (r *postgresLinkResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *clickhouseLinkResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	parts := strings.Split(req.ID, " ")
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), parts[0])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_name"), parts[1])...)

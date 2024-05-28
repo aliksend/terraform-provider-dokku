@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
+	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -18,32 +18,32 @@ import (
 )
 
 var (
-	_ resource.Resource                = &couchDBLinkResource{}
-	_ resource.ResourceWithConfigure   = &couchDBLinkResource{}
-	_ resource.ResourceWithImportState = &couchDBLinkResource{}
+	_ resource.Resource                = &rethinkDBLinkResource{}
+	_ resource.ResourceWithConfigure   = &rethinkDBLinkResource{}
+	_ resource.ResourceWithImportState = &rethinkDBLinkResource{}
 )
 
-func NewCouchDBLinkResource() resource.Resource {
-	return &couchDBLinkResource{}
+func NewRethinkDBLinkResource() resource.Resource {
+	return &rethinkDBLinkResource{}
 }
 
-type couchDBLinkResource struct {
+type rethinkDBLinkResource struct {
 	client *dokkuclient.Client
 }
 
-type couchDBLinkResourceModel struct {
+type rethinkDBLinkResourceModel struct {
 	AppName     types.String `tfsdk:"app_name"`
 	ServiceName types.String `tfsdk:"service_name"`
 	Alias       types.String `tfsdk:"alias"`
 }
 
 // Metadata returns the resource type name.
-func (r *couchDBLinkResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_couchdb_link"
+func (r *rethinkDBLinkResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_rethinkdb_link"
 }
 
 // Configure adds the provider configured client to the resource.
-func (r *couchDBLinkResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *rethinkDBLinkResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -53,7 +53,7 @@ func (r *couchDBLinkResource) Configure(_ context.Context, req resource.Configur
 }
 
 // Schema defines the schema for the resource.
-func (r *couchDBLinkResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *rethinkDBLinkResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"app_name": schema.StringAttribute{
@@ -91,9 +91,9 @@ func (r *couchDBLinkResource) Schema(_ context.Context, _ resource.SchemaRequest
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *couchDBLinkResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *rethinkDBLinkResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state couchDBLinkResourceModel
+	var state rethinkDBLinkResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -101,20 +101,20 @@ func (r *couchDBLinkResource) Read(ctx context.Context, req resource.ReadRequest
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "couchdb", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "rethinkdb", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check couchDB service existence", "Unable to check couchDB service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check rethinkDB service existence", "Unable to check rethinkDB service existence. "+err.Error())
 		return
 	}
 	if !exists {
-		resp.Diagnostics.AddError("Unable to find couchDB service", "Unable to find couchDB service")
+		resp.Diagnostics.AddError("Unable to find rethinkDB service", "Unable to find rethinkDB service")
 		return
 	}
 
 	// Check link existence
-	exists, err = r.client.SimpleServiceLinkExists(ctx, "couchdb", state.ServiceName.ValueString(), state.AppName.ValueString())
+	exists, err = r.client.SimpleServiceLinkExists(ctx, "rethinkdb", state.ServiceName.ValueString(), state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check couchDB link existence", "Unable to check couchDB link existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check rethinkDB link existence", "Unable to check rethinkDB link existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -131,9 +131,9 @@ func (r *couchDBLinkResource) Read(ctx context.Context, req resource.ReadRequest
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *couchDBLinkResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *rethinkDBLinkResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
-	var plan couchDBLinkResourceModel
+	var plan rethinkDBLinkResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -141,20 +141,20 @@ func (r *couchDBLinkResource) Create(ctx context.Context, req resource.CreateReq
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "couchdb", plan.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "rethinkdb", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check couchDB service existence", "Unable to check couchDB service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check rethinkDB service existence", "Unable to check rethinkDB service existence. "+err.Error())
 		return
 	}
 	if !exists {
-		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Unable to find couchDB service", "Unable to find couchDB service")
+		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Unable to find rethinkDB service", "Unable to find rethinkDB service")
 		return
 	}
 
 	// Check link existence
-	exists, err = r.client.SimpleServiceLinkExists(ctx, "couchdb", plan.ServiceName.ValueString(), plan.AppName.ValueString())
+	exists, err = r.client.SimpleServiceLinkExists(ctx, "rethinkdb", plan.ServiceName.ValueString(), plan.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check couchDB link existence", "Unable to check couchDB link existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check rethinkDB link existence", "Unable to check rethinkDB link existence. "+err.Error())
 		return
 	}
 	if exists {
@@ -168,9 +168,9 @@ func (r *couchDBLinkResource) Create(ctx context.Context, req resource.CreateReq
 	}
 
 	// Create link
-	err = r.client.SimpleServiceLinkCreate(ctx, "couchdb", plan.ServiceName.ValueString(), plan.AppName.ValueString(), args...)
+	err = r.client.SimpleServiceLinkCreate(ctx, "rethinkdb", plan.ServiceName.ValueString(), plan.AppName.ValueString(), args...)
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to create couchDB link", "Unable to create couchDB link. "+err.Error())
+		resp.Diagnostics.AddError("Unable to create rethinkDB link", "Unable to create rethinkDB link. "+err.Error())
 		return
 	}
 
@@ -183,14 +183,14 @@ func (r *couchDBLinkResource) Create(ctx context.Context, req resource.CreateReq
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *couchDBLinkResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *rethinkDBLinkResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *couchDBLinkResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *rethinkDBLinkResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
-	var state couchDBLinkResourceModel
+	var state rethinkDBLinkResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -198,9 +198,9 @@ func (r *couchDBLinkResource) Delete(ctx context.Context, req resource.DeleteReq
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "couchdb", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "rethinkdb", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check couchDB service existence", "Unable to check couchDB service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check rethinkDB service existence", "Unable to check rethinkDB service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -208,9 +208,9 @@ func (r *couchDBLinkResource) Delete(ctx context.Context, req resource.DeleteReq
 	}
 
 	// Check link existence
-	exists, err = r.client.SimpleServiceLinkExists(ctx, "couchdb", state.ServiceName.ValueString(), state.AppName.ValueString())
+	exists, err = r.client.SimpleServiceLinkExists(ctx, "rethinkdb", state.ServiceName.ValueString(), state.AppName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check couchDB link existence", "Unable to check couchDB link existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check rethinkDB link existence", "Unable to check rethinkDB link existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -218,14 +218,14 @@ func (r *couchDBLinkResource) Delete(ctx context.Context, req resource.DeleteReq
 	}
 
 	// Unlink service
-	err = r.client.SimpleServiceLinkRemove(ctx, "couchdb", state.ServiceName.ValueString(), state.AppName.ValueString())
+	err = r.client.SimpleServiceLinkRemove(ctx, "rethinkdb", state.ServiceName.ValueString(), state.AppName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to unlink service from app", "Unable to unlink service from app. "+err.Error())
 		return
 	}
 }
 
-func (r *couchDBLinkResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *rethinkDBLinkResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	parts := strings.Split(req.ID, " ")
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("app_name"), parts[0])...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_name"), parts[1])...)

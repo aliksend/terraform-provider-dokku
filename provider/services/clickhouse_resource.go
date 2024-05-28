@@ -4,7 +4,7 @@ import (
 	"context"
 	"regexp"
 
-	dokkuclient "terraform-provider-dokku/internal/provider/dokku_client"
+	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -17,30 +17,30 @@ import (
 )
 
 var (
-	_ resource.Resource                = &redisResource{}
-	_ resource.ResourceWithConfigure   = &redisResource{}
-	_ resource.ResourceWithImportState = &redisResource{}
+	_ resource.Resource                = &chickhouseResource{}
+	_ resource.ResourceWithConfigure   = &chickhouseResource{}
+	_ resource.ResourceWithImportState = &chickhouseResource{}
 )
 
-func NewRedisResource() resource.Resource {
-	return &redisResource{}
+func NewClickhouseResource() resource.Resource {
+	return &chickhouseResource{}
 }
 
-type redisResource struct {
+type chickhouseResource struct {
 	client *dokkuclient.Client
 }
 
-type redisResourceModel struct {
+type chickhouseResourceModel struct {
 	ServiceName types.String `tfsdk:"service_name"`
 }
 
 // Metadata returns the resource type name.
-func (r *redisResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_redis"
+func (r *chickhouseResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_chickhouse"
 }
 
 // Configure adds the provider configured client to the resource.
-func (r *redisResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *chickhouseResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -50,7 +50,7 @@ func (r *redisResource) Configure(_ context.Context, req resource.ConfigureReque
 }
 
 // Schema defines the schema for the resource.
-func (r *redisResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *chickhouseResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"service_name": schema.StringAttribute{
@@ -68,9 +68,9 @@ func (r *redisResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *redisResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *chickhouseResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state redisResourceModel
+	var state chickhouseResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -78,9 +78,9 @@ func (r *redisResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "redis", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "clickhouse", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check redis service existence", "Unable to check redis service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check chickhouse service existence", "Unable to check chickhouse service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -97,9 +97,9 @@ func (r *redisResource) Read(ctx context.Context, req resource.ReadRequest, resp
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *redisResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *chickhouseResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
-	var plan redisResourceModel
+	var plan chickhouseResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -107,19 +107,19 @@ func (r *redisResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 
 	// Create service is not exists
-	exists, err := r.client.SimpleServiceExists(ctx, "redis", plan.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "clickhouse", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check redis service existence", "Unable to check redis service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check chickhouse service existence", "Unable to check chickhouse service existence. "+err.Error())
 		return
 	}
 	if exists {
-		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Redis service already exists", "Redis service already exists")
+		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Clickhouse service already exists", "Clickhouse service already exists")
 		return
 	}
 
-	err = r.client.SimpleServiceCreate(ctx, "redis", plan.ServiceName.ValueString())
+	err = r.client.SimpleServiceCreate(ctx, "clickhouse", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to create redis service", "Unable to create redis service. "+err.Error())
+		resp.Diagnostics.AddError("Unable to create chickhouse service", "Unable to create chickhouse service. "+err.Error())
 		return
 	}
 
@@ -132,14 +132,14 @@ func (r *redisResource) Create(ctx context.Context, req resource.CreateRequest, 
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *redisResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+func (r *chickhouseResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *redisResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *chickhouseResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
-	var state redisResourceModel
+	var state chickhouseResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -147,9 +147,9 @@ func (r *redisResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	}
 
 	// Check service existence
-	exists, err := r.client.SimpleServiceExists(ctx, "redis", state.ServiceName.ValueString())
+	exists, err := r.client.SimpleServiceExists(ctx, "clickhouse", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check redis service existence", "Unable to check redis service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check chickhouse service existence", "Unable to check chickhouse service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -157,14 +157,14 @@ func (r *redisResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	}
 
 	// Destroy instance
-	err = r.client.SimpleServiceDestroy(ctx, "redis", state.ServiceName.ValueString())
+	err = r.client.SimpleServiceDestroy(ctx, "clickhouse", state.ServiceName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to destroy service", "Unable to destroy service. "+err.Error())
 		return
 	}
 }
 
-func (r *redisResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *chickhouseResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Retrieve import ID and save to service_name attribute
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_name"), req.ID)...)
 }
