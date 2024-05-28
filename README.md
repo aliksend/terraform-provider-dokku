@@ -6,7 +6,9 @@ For now only subset of dokku features are supported now.
 
 ## Using the provider
 
-1. [Set up dokku](https://dokku.com/docs/getting-started/installation/#installing-the-latest-stable-version) or [Upgrade dokku](https://dokku.com/docs/getting-started/upgrading/) on installations with prebuilt dokku (like on DO)
+1. [Set up dokku](https://dokku.com/docs/getting-started/installation/#installing-the-latest-stable-version) or [Upgrade dokku](https://dokku.com/docs/getting-started/upgrading/) on installations with prebuilt dokku (like on [DigitalOcean](https://marketplace.digitalocean.com/apps/dokku))
+
+<span name='step-two'></span>
 
 2. Set up SSH keys
 ```bash
@@ -20,8 +22,8 @@ ssh-copy-id user@IP
 cat ~/.ssh/authorized_keys | dokku ssh-keys:add admin
 ```
 
-Add the provider and host settings to your terraform block.
-The SSH key should be that of a [dokku user](https://dokku.com/docs/deployment/user-management/). Dokku users have dokku set as a forced command - the provider will not attempt to explicitly specify the dokku binary over SSH.
+3. Add the provider and host settings to your terraform block.
+The SSH key must belong to [dokku user](https://dokku.com/docs/deployment/user-management/). Dokku users have set `dokku` as a forced command - the provider will not attempt to explicitly specify the dokku binary over SSH.
 
 ```hcl
 terraform {
@@ -39,10 +41,6 @@ provider "dokku" {
   ssh_user = "dokku"
   ssh_port = 22
   ssh_cert = "~/.ssh/id_rsa"
-
-  # to support copying from local to host
-  scp_user = "root"
-  scp_cert = "~/.ssh/root_rsa"
 }
 ```
 
@@ -50,279 +48,300 @@ provider "dokku" {
 
 ### Deploy using push from git repository (simplest way)
 
-Example .gitlab-ci.yml
-```yml
-stages:
-  - terraform
-  - deploy
+This configuration will create your infrastructure using terraform and then deploy using git push.
 
-variables:
-  SSH_HOST: __YOUR_HOST__
-  APP_NAME: __YOUR_APP__
-  TF_STATE_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/main"
+<details>
+  <summary>Example .gitlab-ci.yml</summary>
 
-terraform:
-  image:
-    name: hashicorp/terraform:light
-    entrypoint: ['']
-  stage: terraform
-  only:
-    - master
-  script:
-    - terraform version
-    - terraform init
-      -reconfigure
-      -backend-config="address=${TF_STATE_ADDRESS}"
-      -backend-config="lock_address=${TF_STATE_ADDRESS}/lock"
-      -backend-config="unlock_address=${TF_STATE_ADDRESS}/lock"
-      -backend-config="username=gitlab-ci-token"
-      -backend-config="password=$CI_JOB_TOKEN"
-      -backend-config="lock_method=POST"
-      -backend-config="unlock_method=DELETE"
-      -backend-config="retry_wait_min=5"
-    - terraform apply
-      -input=false
-      -auto-approve
-      -var ssh_cert="$SSH_PRIVATE_KEY"
+  ```yml
+  stages:
+    - terraform
+    - deploy
 
-dokku_deploy:
-  image: ilyasemenov/gitlab-ci-git-push
-  stage: deploy
-  only:
-    - master
-  script:
-    - git-push ssh://dokku@$SSH_HOST/$APP_NAME
-```
+  variables:
+    SSH_HOST: __YOUR_HOST__
+    APP_NAME: __YOUR_APP__
+    TF_STATE_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/main"
 
-You need to have gitlab variable SSH_PRIVATE_KEY with private key, added in step 2.
+  terraform:
+    image:
+      name: hashicorp/terraform:light
+      entrypoint: ['']
+    stage: terraform
+    only:
+      - master
+    script:
+      - terraform version
+      - terraform init
+        -reconfigure
+        -backend-config="address=${TF_STATE_ADDRESS}"
+        -backend-config="lock_address=${TF_STATE_ADDRESS}/lock"
+        -backend-config="unlock_address=${TF_STATE_ADDRESS}/lock"
+        -backend-config="username=gitlab-ci-token"
+        -backend-config="password=$CI_JOB_TOKEN"
+        -backend-config="lock_method=POST"
+        -backend-config="unlock_method=DELETE"
+        -backend-config="retry_wait_min=5"
+      - terraform apply
+        -input=false
+        -auto-approve
+        -var ssh_cert="$SSH_PRIVATE_KEY"
 
-Example terraform configuration
-```terraform
-variable "ssh_cert" {
-  type = string
-  description = "SSH cert"
-  default = "~/.ssh/id_rsa"
-}
+  dokku_deploy:
+    image: ilyasemenov/gitlab-ci-git-push
+    stage: deploy
+    only:
+      - master
+    script:
+      - git-push ssh://dokku@$SSH_HOST/$APP_NAME
+  ```
+</details>
 
-terraform {
-  required_providers {
-    dokku = {
-      source = "registry.terraform.io/aliksend/dokku"
-    }
+You need to have gitlab variable SSH_PRIVATE_KEY with private key, added in [step two](#step-two).
+
+<details>
+  <summary>Example terraform configuration</summary>
+
+  ```terraform
+  variable "ssh_cert" {
+    type = string
+    description = "SSH cert"
   }
 
-  backend "http" {}
-}
+  terraform {
+    required_providers {
+      dokku = {
+        source = "registry.terraform.io/aliksend/dokku"
+      }
+    }
 
-provider "dokku" {
-  ...
-  ssh_cert = var.ssh_cert
-}
+    backend "http" {}
+  }
 
-resource "dokku_app" "yourname" {
-  ...
+  provider "dokku" {
+    ...
+    ssh_cert = var.ssh_cert
+  }
 
-  deploy = null
-}
-```
+  resource "dokku_app" "appname" {
+    ...
+
+    deploy = null
+  }
+  ```
+</details>
 
 ### Deploy using sync with git repository
 
-Example .gitlab-ci.yml
-```yml
-stages:
-  - deploy
+This configuration will create your infrastructure using terraform and set up dokku deployment using [sync with git repository](https://dokku.com/docs/deployment/methods/git/#initializing-an-app-repository-from-a-remote-repository).
 
-variables:
-  TF_STATE_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/main"
+<details>
+  <summary>Example .gitlab-ci.yml</summary>
 
-dokku_deploy:
-  image:
-    name: hashicorp/terraform:light
-    entrypoint: ['']
-  stage: deploy
-  only:
-    - master
-  script:
-    - terraform version
-    - terraform init
-      -reconfigure
-      -backend-config="address=${TF_STATE_ADDRESS}"
-      -backend-config="lock_address=${TF_STATE_ADDRESS}/lock"
-      -backend-config="unlock_address=${TF_STATE_ADDRESS}/lock"
-      -backend-config="username=gitlab-ci-token"
-      -backend-config="password=$CI_JOB_TOKEN"
-      -backend-config="lock_method=POST"
-      -backend-config="unlock_method=DELETE"
-      -backend-config="retry_wait_min=5"
-    - terraform apply
-      -input=false
-      -auto-approve
-      -var ssh_cert="$SSH_PRIVATE_KEY"
-      -var git_repository="$CI_REPOSITORY_URL"
-      -var git_repository_ref="$CI_COMMIT_SHA"
-```
+  ```yml
+  stages:
+    - deploy
 
-You need to have gitlab variable SSH_PRIVATE_KEY with private key, added in step 2.
+  variables:
+    TF_STATE_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/main"
 
-As long as built-in gitlab env var CI_REPOSITORY_URL contains credentials you don't need to provide it explicitly.
+  dokku_deploy:
+    image:
+      name: hashicorp/terraform:light
+      entrypoint: ['']
+    stage: deploy
+    only:
+      - master
+    script:
+      - terraform version
+      - terraform init
+        -reconfigure
+        -backend-config="address=${TF_STATE_ADDRESS}"
+        -backend-config="lock_address=${TF_STATE_ADDRESS}/lock"
+        -backend-config="unlock_address=${TF_STATE_ADDRESS}/lock"
+        -backend-config="username=gitlab-ci-token"
+        -backend-config="password=$CI_JOB_TOKEN"
+        -backend-config="lock_method=POST"
+        -backend-config="unlock_method=DELETE"
+        -backend-config="retry_wait_min=5"
+      - terraform apply
+        -input=false
+        -auto-approve
+        -var ssh_cert="$SSH_PRIVATE_KEY"
+        -var git_repository="$CI_REPOSITORY_URL"
+        -var git_repository_ref="$CI_COMMIT_SHA"
+  ```
+</details>
 
-Example terraform configuration
-```terraform
-variable "ssh_cert" {
-  type = string
-  description = "SSH cert"
-  default = "~/.ssh/id_rsa"
-}
+You need to have gitlab variable SSH_PRIVATE_KEY with private key, added in [step two](#step-two).
 
-variable "git_repository" {
-  type = string
-  description = "Git repository to sync with"
-}
+As long as built-in gitlab [built-in env var](https://docs.gitlab.com/ee/ci/variables/predefined_variables.html) CI_REPOSITORY_URL contains credentials you don't need to provide it explicitly.
 
-variable "git_repository_ref" {
-  type = string
-  description = "Ref in git repository to sync with"
-}
+<details>
+  <summary>Example terraform configuration</summary>
 
-terraform {
-  required_providers {
-    dokku = {
-      source = "registry.terraform.io/aliksend/dokku"
+  ```terraform
+  variable "ssh_cert" {
+    type = string
+    description = "SSH cert"
+  }
+
+  variable "git_repository" {
+    type = string
+    description = "Git repository to sync with"
+  }
+
+  variable "git_repository_ref" {
+    type = string
+    description = "Ref in git repository to sync with"
+  }
+
+  terraform {
+    required_providers {
+      dokku = {
+        source = "registry.terraform.io/aliksend/dokku"
+      }
+    }
+
+    backend "http" {}
+  }
+
+  provider "dokku" {
+    ...
+    ssh_cert = var.ssh_cert
+  }
+
+  resource "dokku_app" "appname" {
+    ...
+
+    deploy = {
+      type = "git_repository"
+      git_repository = var.git_repository
+      git_repository_ref = var.git_repository_ref
     }
   }
-
-  backend "http" {}
-}
-
-provider "dokku" {
-  ...
-  ssh_cert = var.ssh_cert
-}
-
-resource "dokku_app" "yourname" {
-  ...
-
-  deploy = {
-    type = "git_repository"
-    git_repository = var.git_repository
-    git_repository_ref = var.git_repository_ref
-  }
-}
-```
+  ```
+</details>
 
 ### Deploy using docker image
 
-Example .gitlabci.yml
-```yml
-stages:
-  - build
-  - deploy
+This configuration will create your infrastructure using terraform and set up dokku [docker image deployment](https://dokku.com/docs/deployment/methods/image/#initializing-an-app-repository-from-a-docker-image).
 
-variables:
-  TF_STATE_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/main"
+<details>
+  <summary>Example .gitlabci.yml</summary>
 
-build:
-  image: docker:stable
-  stage: build
-  services:
-    - docker:dind
-  only:
-    - master
+  ```yml
+  stages:
+    - build
+    - deploy
+
   variables:
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_DRIVER: overlay2
-  script:
-    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN registry.gitlab.com
-    - docker pull $CI_REGISTRY_IMAGE:latest || true
-    - docker build --cache-from $CI_REGISTRY_IMAGE:latest --tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA --tag $CI_REGISTRY_IMAGE:latest .
-    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
-    - docker push $CI_REGISTRY_IMAGE:latest
+    TF_STATE_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/main"
 
-dokku_deploy:
-  image:
-    name: hashicorp/terraform:light
-    entrypoint: ['']
-  stage: deploy
-  only:
-    - master
-  script:
-    - terraform version
-    - terraform init
-      -reconfigure
-      -backend-config="address=${TF_STATE_ADDRESS}"
-      -backend-config="lock_address=${TF_STATE_ADDRESS}/lock"
-      -backend-config="unlock_address=${TF_STATE_ADDRESS}/lock"
-      -backend-config="username=gitlab-ci-token"
-      -backend-config="password=$CI_JOB_TOKEN"
-      -backend-config="lock_method=POST"
-      -backend-config="unlock_method=DELETE"
-      -backend-config="retry_wait_min=5"
-    - terraform apply
-      -input=false
-      -auto-approve
-      -var docker_image="$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
-      -var ssh_cert="$SSH_PRIVATE_KEY"
-      -var docker_image_registry_login="gitlab-ci-token"
-      -var docker_image_registry_password="$CI_JOB_TOKEN"
+  build:
+    image: docker:stable
+    stage: build
+    services:
+      - docker:dind
+    only:
+      - master
+    variables:
+      DOCKER_HOST: tcp://docker:2375
+      DOCKER_DRIVER: overlay2
+    script:
+      - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN registry.gitlab.com
+      - docker pull $CI_REGISTRY_IMAGE:latest || true
+      - docker build --cache-from $CI_REGISTRY_IMAGE:latest --tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA --tag $CI_REGISTRY_IMAGE:latest .
+      - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+      - docker push $CI_REGISTRY_IMAGE:latest
 
-```
+  dokku_deploy:
+    image:
+      name: hashicorp/terraform:light
+      entrypoint: ['']
+    stage: deploy
+    only:
+      - master
+    script:
+      - terraform version
+      - terraform init
+        -reconfigure
+        -backend-config="address=${TF_STATE_ADDRESS}"
+        -backend-config="lock_address=${TF_STATE_ADDRESS}/lock"
+        -backend-config="unlock_address=${TF_STATE_ADDRESS}/lock"
+        -backend-config="username=gitlab-ci-token"
+        -backend-config="password=$CI_JOB_TOKEN"
+        -backend-config="lock_method=POST"
+        -backend-config="unlock_method=DELETE"
+        -backend-config="retry_wait_min=5"
+      - terraform apply
+        -input=false
+        -auto-approve
+        -var docker_image="$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+        -var ssh_cert="$SSH_PRIVATE_KEY"
+        -var docker_image_registry_login="gitlab-ci-token"
+        -var docker_image_registry_password="$CI_JOB_TOKEN"
 
-You need to have gitlab variable SSH_PRIVATE_KEY with private key, added in step 2.
+  ```
+</details>
 
-Example terraform configuration
-```terraform
-variable "ssh_cert" {
-  type = string
-  description = "SSH cert"
-  default = "~/.ssh/id_rsa"
-}
+You need to have gitlab variable SSH_PRIVATE_KEY with private key, added in [step two](#step-two).
 
-variable "docker_image" {
-  type = string
-  description = "Docker image to deploy"
-}
+<details>
+  <summary>Example terraform configuration</summary>
 
-variable "docker_image_registry_login" {
-  type = string
-  description = "Login for Registry of your docker image"
-}
+  ```terraform
+  variable "ssh_cert" {
+    type = string
+    description = "SSH cert"
+  }
 
-variable "docker_image_registry_password" {
-  type = string
-  description = "Password for Registry of your docker image"
-}
+  variable "docker_image" {
+    type = string
+    description = "Docker image to deploy"
+  }
 
-terraform {
-  required_providers {
-    dokku = {
-      source = "registry.terraform.io/aliksend/dokku"
+  variable "docker_image_registry_login" {
+    type = string
+    description = "Login for Registry of your docker image"
+  }
+
+  variable "docker_image_registry_password" {
+    type = string
+    description = "Password for Registry of your docker image"
+  }
+
+  terraform {
+    required_providers {
+      dokku = {
+        source = "registry.terraform.io/aliksend/dokku"
+      }
+    }
+
+    backend "http" {}
+  }
+
+  provider "dokku" {
+    ...
+    ssh_cert = var.ssh_cert
+  }
+
+  resource "dokku_app" "appname" {
+    ...
+
+    deploy = {
+      type = "docker_image"
+      login = var.docker_image_registry_login
+      password = var.docker_image_registry_password
+      docker_image = var.docker_image
     }
   }
-
-  backend "http" {}
-}
-
-provider "dokku" {
-  ...
-  ssh_cert = var.ssh_cert
-}
-
-resource "dokku_app" "yourname" {
-  ...
-
-  deploy = {
-    type = "docker_image"
-    login = var.docker_image_registry_login
-    password = var.docker_image_registry_password
-    docker_image = var.docker_image
-  }
-}
-```
+  ```
+</details>
 
 # Developing the Provider
 
-If you wish to work on the provider, you'll first need [Go](http://www.golang.org) installed on your machine (see [Requirements](#requirements) above).
+If you wish to work on the provider, you'll first need [Go](http://www.golang.org) installed on your machine (see [Requirements](#requirements) below).
 
 To compile the provider, run `go install`. This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
 
