@@ -14,33 +14,35 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 var (
-	_ resource.Resource                = &chickhouseResource{}
-	_ resource.ResourceWithConfigure   = &chickhouseResource{}
-	_ resource.ResourceWithImportState = &chickhouseResource{}
+	_ resource.Resource                = &clickhouseResource{}
+	_ resource.ResourceWithConfigure   = &clickhouseResource{}
+	_ resource.ResourceWithImportState = &clickhouseResource{}
 )
 
 func NewClickhouseResource() resource.Resource {
-	return &chickhouseResource{}
+	return &clickhouseResource{}
 }
 
-type chickhouseResource struct {
+type clickhouseResource struct {
 	client *dokkuclient.Client
 }
 
-type chickhouseResourceModel struct {
+type clickhouseResourceModel struct {
 	ServiceName types.String `tfsdk:"service_name"`
+	Expose      types.String `tfsdk:"expose"`
 }
 
 // Metadata returns the resource type name.
-func (r *chickhouseResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_chickhouse"
+func (r *clickhouseResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_clickhouse"
 }
 
 // Configure adds the provider configured client to the resource.
-func (r *chickhouseResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+func (r *clickhouseResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
@@ -50,7 +52,7 @@ func (r *chickhouseResource) Configure(_ context.Context, req resource.Configure
 }
 
 // Schema defines the schema for the resource.
-func (r *chickhouseResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *clickhouseResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"service_name": schema.StringAttribute{
@@ -63,14 +65,21 @@ func (r *chickhouseResource) Schema(_ context.Context, _ resource.SchemaRequest,
 					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-z][a-z0-9-]*$`), "invalid service_name"),
 				},
 			},
+			"expose": schema.StringAttribute{
+				Optional:    true,
+				Description: "Port or IP:Port to expose service on",
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(regexp.MustCompile(`^\d+$|^\d+\.\d+\.\d+\.\d+:\d+$`), "invalid expose"),
+				},
+			},
 		},
 	}
 }
 
 // Read refreshes the Terraform state with the latest data.
-func (r *chickhouseResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+func (r *clickhouseResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	// Get current state
-	var state chickhouseResourceModel
+	var state clickhouseResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -80,12 +89,31 @@ func (r *chickhouseResource) Read(ctx context.Context, req resource.ReadRequest,
 	// Check service existence
 	exists, err := r.client.SimpleServiceExists(ctx, "clickhouse", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check chickhouse service existence", "Unable to check chickhouse service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check clickhouse service existence", "Unable to check clickhouse service existence. "+err.Error())
 		return
 	}
 	if !exists {
 		resp.State.RemoveResource(ctx)
 		return
+	}
+
+	info, err := r.client.SimpleServiceInfo(ctx, "clickhouse", state.ServiceName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to get clickhouse service info", "Unable to get clickhouse service info. "+err.Error())
+		return
+	}
+	infoExposedPorts := info["Exposed ports"]
+	if infoExposedPorts != "" && infoExposedPorts != "-" {
+		r := regexp.MustCompile(`^\d+->(.+)$`)
+		m := r.FindStringSubmatch(infoExposedPorts)
+		if len(m) != 2 {
+			resp.Diagnostics.AddError("Unsupported format of clickhouse service Exposed ports", "Unsupported format of clickhouse service Exposed ports: "+infoExposedPorts)
+			return
+		}
+
+		state.Expose = basetypes.NewStringValue(m[1])
+	} else {
+		state.Expose = basetypes.NewStringNull()
 	}
 
 	// Set refreshed state
@@ -97,9 +125,9 @@ func (r *chickhouseResource) Read(ctx context.Context, req resource.ReadRequest,
 }
 
 // Create creates the resource and sets the initial Terraform state.
-func (r *chickhouseResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (r *clickhouseResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
-	var plan chickhouseResourceModel
+	var plan clickhouseResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -109,7 +137,7 @@ func (r *chickhouseResource) Create(ctx context.Context, req resource.CreateRequ
 	// Create service is not exists
 	exists, err := r.client.SimpleServiceExists(ctx, "clickhouse", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check chickhouse service existence", "Unable to check chickhouse service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check clickhouse service existence", "Unable to check clickhouse service existence. "+err.Error())
 		return
 	}
 	if exists {
@@ -119,8 +147,16 @@ func (r *chickhouseResource) Create(ctx context.Context, req resource.CreateRequ
 
 	err = r.client.SimpleServiceCreate(ctx, "clickhouse", plan.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to create chickhouse service", "Unable to create chickhouse service. "+err.Error())
+		resp.Diagnostics.AddError("Unable to create clickhouse service", "Unable to create clickhouse service. "+err.Error())
 		return
+	}
+
+	if !plan.Expose.IsNull() {
+		err := r.client.SimpleServiceExpose(ctx, "clickhouse", plan.ServiceName.ValueString(), plan.Expose.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to expose clickhouse service", "Unable to expose clickhouse service. "+err.Error())
+			return
+		}
 	}
 
 	// Set state to fully populated data
@@ -132,14 +168,62 @@ func (r *chickhouseResource) Create(ctx context.Context, req resource.CreateRequ
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
-func (r *chickhouseResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
+func (r *clickhouseResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	// Retrieve values from plan
+	var plan clickhouseResourceModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	var state clickhouseResourceModel
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if plan.ServiceName.ValueString() != state.ServiceName.ValueString() {
+		resp.Diagnostics.AddError("service_name can't be changed", "service_name can't be changed")
+	}
+
+	if !plan.Expose.IsNull() {
+		if !plan.Expose.Equal(state.Expose) {
+			err := r.client.SimpleServiceUnexpose(ctx, "clickhouse", state.ServiceName.ValueString())
+			if err != nil {
+				resp.Diagnostics.AddError("Unable to unexpose clickhouse service", "Unable to unexpose clickhouse service. "+err.Error())
+				return
+			}
+
+			err = r.client.SimpleServiceExpose(ctx, "clickhouse", plan.ServiceName.ValueString(), plan.Expose.ValueString())
+			if err != nil {
+				resp.Diagnostics.AddError("Unable to expose clickhouse service", "Unable to expose clickhouse service. "+err.Error())
+				return
+			}
+		}
+	} else if !state.Expose.IsNull() {
+		err := r.client.SimpleServiceUnexpose(ctx, "clickhouse", state.ServiceName.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to unexpose clickhouse service", "Unable to unexpose clickhouse service. "+err.Error())
+			return
+		}
+	}
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = resp.State.Set(ctx, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 // Delete deletes the resource and removes the Terraform state on success.
-func (r *chickhouseResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+func (r *clickhouseResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Retrieve values from state
-	var state chickhouseResourceModel
+	var state clickhouseResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -149,7 +233,7 @@ func (r *chickhouseResource) Delete(ctx context.Context, req resource.DeleteRequ
 	// Check service existence
 	exists, err := r.client.SimpleServiceExists(ctx, "clickhouse", state.ServiceName.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to check chickhouse service existence", "Unable to check chickhouse service existence. "+err.Error())
+		resp.Diagnostics.AddError("Unable to check clickhouse service existence", "Unable to check clickhouse service existence. "+err.Error())
 		return
 	}
 	if !exists {
@@ -164,7 +248,7 @@ func (r *chickhouseResource) Delete(ctx context.Context, req resource.DeleteRequ
 	}
 }
 
-func (r *chickhouseResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (r *clickhouseResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Retrieve import ID and save to service_name attribute
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("service_name"), req.ID)...)
 }

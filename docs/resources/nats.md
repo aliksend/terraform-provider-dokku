@@ -22,3 +22,4 @@ description: |-
 ### Optional
 
 - `config_options` (String) Config options to create service with
+- `expose` (String) Port or IP:Port to expose service on

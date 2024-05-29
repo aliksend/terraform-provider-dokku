@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 var (
@@ -32,6 +33,7 @@ type rethinkDBResource struct {
 
 type rethinkDBResourceModel struct {
 	ServiceName types.String `tfsdk:"service_name"`
+	Expose      types.String `tfsdk:"expose"`
 }
 
 // Metadata returns the resource type name.
@@ -63,6 +65,13 @@ func (r *rethinkDBResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-z][a-z0-9-]*$`), "invalid service_name"),
 				},
 			},
+			"expose": schema.StringAttribute{
+				Optional:    true,
+				Description: "Port or IP:Port to expose service on",
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(regexp.MustCompile(`^\d+$|^\d+\.\d+\.\d+\.\d+:\d+$`), "invalid expose"),
+				},
+			},
 		},
 	}
 }
@@ -86,6 +95,25 @@ func (r *rethinkDBResource) Read(ctx context.Context, req resource.ReadRequest, 
 	if !exists {
 		resp.State.RemoveResource(ctx)
 		return
+	}
+
+	info, err := r.client.SimpleServiceInfo(ctx, "rethinkdb", state.ServiceName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to get rethinkdb service info", "Unable to get rethinkdb service info. "+err.Error())
+		return
+	}
+	infoExposedPorts := info["Exposed ports"]
+	if infoExposedPorts != "" && infoExposedPorts != "-" {
+		r := regexp.MustCompile(`^\d+->(.+)$`)
+		m := r.FindStringSubmatch(infoExposedPorts)
+		if len(m) != 2 {
+			resp.Diagnostics.AddError("Unsupported format of rethinkdb service Exposed ports", "Unsupported format of rethinkdb service Exposed ports: "+infoExposedPorts)
+			return
+		}
+
+		state.Expose = basetypes.NewStringValue(m[1])
+	} else {
+		state.Expose = basetypes.NewStringNull()
 	}
 
 	// Set refreshed state
@@ -123,6 +151,14 @@ func (r *rethinkDBResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
+	if !plan.Expose.IsNull() {
+		err := r.client.SimpleServiceExpose(ctx, "rethinkdb", plan.ServiceName.ValueString(), plan.Expose.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to expose rethinkdb service", "Unable to expose rethinkdb service. "+err.Error())
+			return
+		}
+	}
+
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -133,7 +169,55 @@ func (r *rethinkDBResource) Create(ctx context.Context, req resource.CreateReque
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *rethinkDBResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
+	// Retrieve values from plan
+	var plan rethinkDBResourceModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	var state rethinkDBResourceModel
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if plan.ServiceName.ValueString() != state.ServiceName.ValueString() {
+		resp.Diagnostics.AddError("service_name can't be changed", "service_name can't be changed")
+	}
+
+	if !plan.Expose.IsNull() {
+		if !plan.Expose.Equal(state.Expose) {
+			err := r.client.SimpleServiceUnexpose(ctx, "rethinkdb", state.ServiceName.ValueString())
+			if err != nil {
+				resp.Diagnostics.AddError("Unable to unexpose rethinkdb service", "Unable to unexpose rethinkdb service. "+err.Error())
+				return
+			}
+
+			err = r.client.SimpleServiceExpose(ctx, "rethinkdb", plan.ServiceName.ValueString(), plan.Expose.ValueString())
+			if err != nil {
+				resp.Diagnostics.AddError("Unable to expose rethinkdb service", "Unable to expose rethinkdb service. "+err.Error())
+				return
+			}
+		}
+	} else if !state.Expose.IsNull() {
+		err := r.client.SimpleServiceUnexpose(ctx, "rethinkdb", state.ServiceName.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to unexpose rethinkdb service", "Unable to unexpose rethinkdb service. "+err.Error())
+			return
+		}
+	}
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = resp.State.Set(ctx, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 // Delete deletes the resource and removes the Terraform state on success.

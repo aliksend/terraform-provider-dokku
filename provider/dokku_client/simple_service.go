@@ -47,3 +47,13 @@ func (c *Client) SimpleServiceInfo(ctx context.Context, servicePluginName string
 	}
 	return res, nil
 }
+
+func (c *Client) SimpleServiceExpose(ctx context.Context, servicePluginName string, serviceName string, expose string) error {
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("%s:expose %s %s", servicePluginName, serviceName, expose))
+	return err
+}
+
+func (c *Client) SimpleServiceUnexpose(ctx context.Context, servicePluginName string, serviceName string) error {
+	_, _, err := c.RunQuiet(ctx, fmt.Sprintf("%s:unexpose %s", servicePluginName, serviceName))
+	return err
+}

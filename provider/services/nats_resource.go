@@ -34,6 +34,7 @@ type natsResource struct {
 type natsResourceModel struct {
 	ServiceName   types.String `tfsdk:"service_name"`
 	ConfigOptions types.String `tfsdk:"config_options"`
+	Expose        types.String `tfsdk:"expose"`
 }
 
 // Metadata returns the resource type name.
@@ -75,6 +76,13 @@ func (r *natsResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 					stringvalidator.LengthAtLeast(1),
 				},
 			},
+			"expose": schema.StringAttribute{
+				Optional:    true,
+				Description: "Port or IP:Port to expose service on",
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(regexp.MustCompile(`^\d+$|^\d+\.\d+\.\d+\.\d+:\d+$`), "invalid expose"),
+				},
+			},
 		},
 	}
 }
@@ -109,6 +117,19 @@ func (r *natsResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		state.ConfigOptions = basetypes.NewStringValue(info["Config options"])
 	} else {
 		state.ConfigOptions = basetypes.NewStringNull()
+	}
+	infoExposedPorts := info["Exposed ports"]
+	if infoExposedPorts != "" && infoExposedPorts != "-" {
+		r := regexp.MustCompile(`^\d+->(.+)$`)
+		m := r.FindStringSubmatch(infoExposedPorts)
+		if len(m) != 2 {
+			resp.Diagnostics.AddError("Unsupported format of nats service Exposed ports", "Unsupported format of nats service Exposed ports: "+infoExposedPorts)
+			return
+		}
+
+		state.Expose = basetypes.NewStringValue(m[1])
+	} else {
+		state.Expose = basetypes.NewStringNull()
 	}
 
 	// Set refreshed state
@@ -150,6 +171,14 @@ func (r *natsResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
+	if !plan.Expose.IsNull() {
+		err := r.client.SimpleServiceExpose(ctx, "nats", plan.ServiceName.ValueString(), plan.Expose.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to expose nats service", "Unable to expose nats service. "+err.Error())
+			return
+		}
+	}
+
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -160,7 +189,55 @@ func (r *natsResource) Create(ctx context.Context, req resource.CreateRequest, r
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *natsResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	resp.Diagnostics.AddError("Resource doesn't support Update", "Resource doesn't support Update")
+	// Retrieve values from plan
+	var plan natsResourceModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	var state natsResourceModel
+	diags = req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if plan.ServiceName.ValueString() != state.ServiceName.ValueString() {
+		resp.Diagnostics.AddError("service_name can't be changed", "service_name can't be changed")
+	}
+
+	if !plan.Expose.IsNull() {
+		if !plan.Expose.Equal(state.Expose) {
+			err := r.client.SimpleServiceUnexpose(ctx, "nats", state.ServiceName.ValueString())
+			if err != nil {
+				resp.Diagnostics.AddError("Unable to unexpose nats service", "Unable to unexpose nats service. "+err.Error())
+				return
+			}
+
+			err = r.client.SimpleServiceExpose(ctx, "nats", plan.ServiceName.ValueString(), plan.Expose.ValueString())
+			if err != nil {
+				resp.Diagnostics.AddError("Unable to expose nats service", "Unable to expose nats service. "+err.Error())
+				return
+			}
+		}
+	} else if !state.Expose.IsNull() {
+		err := r.client.SimpleServiceUnexpose(ctx, "nats", state.ServiceName.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to unexpose nats service", "Unable to unexpose nats service. "+err.Error())
+			return
+		}
+	}
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	diags = resp.State.Set(ctx, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 // Delete deletes the resource and removes the Terraform state on success.

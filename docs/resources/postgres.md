@@ -25,6 +25,10 @@ resource "dokku_postgres" "demo" {
 
 - `service_name` (String) Service name to create
 
+### Optional
+
+- `expose` (String) Port or IP:Port to expose service on
+
 ## Import
 
 Import is supported using the following syntax:
