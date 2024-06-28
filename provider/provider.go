@@ -46,6 +46,7 @@ type dokkuProviderModel struct {
 	SshPort          types.Int64  `tfsdk:"ssh_port"`
 	SshUser          types.String `tfsdk:"ssh_user"`
 	SshCert          types.String `tfsdk:"ssh_cert"`
+	SshHostKey       types.String `tfsdk:"ssh_host_key"`
 	LogSshCommands   types.Bool   `tfsdk:"log_ssh_commands"`
 	UploadAppName    types.String `tfsdk:"upload_app_name"`
 	UploadSplitBytes types.Int64  `tfsdk:"upload_split_bytes"`
@@ -62,6 +63,9 @@ func (p *dokkuProvider) Schema(ctx context.Context, req provider.SchemaRequest, 
 			"ssh_host": schema.StringAttribute{
 				Required:    true,
 				Description: "Host to connect to",
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 			"ssh_port": schema.Int64Attribute{
 				Optional:    true,
@@ -70,6 +74,9 @@ func (p *dokkuProvider) Schema(ctx context.Context, req provider.SchemaRequest, 
 			"ssh_user": schema.StringAttribute{
 				Optional:    true,
 				Description: "Username to use. Default: dokku",
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 			"ssh_cert": schema.StringAttribute{
 				Optional: true,
@@ -81,6 +88,20 @@ func (p *dokkuProvider) Schema(ctx context.Context, req provider.SchemaRequest, 
 					"- env:ABCD or $ABCD - use env var ABCD",
 					"- raw:----.. or ----... - use provided value as raw certificate",
 				}, "\n"),
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
+			},
+			"ssh_host_key": schema.StringAttribute{
+				Optional: true,
+				Description: strings.Join([]string{
+					"Host public key to use. By default key from ~/.ssh/known_hosts will be used.",
+					"To get public keys for your ssh_host, run `ssh-keyscan ssh_host`.",
+					"Must be set for usage within Terraform Cloud.",
+				}, "\n"),
+				Validators: []validator.String{
+					stringvalidator.LengthAtLeast(1),
+				},
 			},
 			"log_ssh_commands": schema.BoolAttribute{
 				Optional:    true,
@@ -251,6 +272,15 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		Port:     port,
 		User:     sshUsername,
 		Callback: verifyHost,
+	}
+
+	if !config.SshHostKey.IsNull() {
+		_, _, publicKey, _, _, err := ssh.ParseKnownHosts([]byte(config.SshHostKey.ValueString()))
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to parse provided ssh_host_key", "Unable to parse provided ssh_host_key. "+err.Error())
+			return
+		}
+		sshConfig.Callback = ssh.FixedHostKey(publicKey)
 	}
 
 	client, err := goph.NewConn(sshConfig)
