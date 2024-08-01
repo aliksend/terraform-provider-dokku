@@ -46,11 +46,11 @@ type dokkuProviderModel struct {
 	SshPort             types.Int64  `tfsdk:"ssh_port"`
 	SshUser             types.String `tfsdk:"ssh_user"`
 	SshCert             types.String `tfsdk:"ssh_cert"`
+	SshSkipHostKeyCheck types.Bool   `tfsdk:"ssh_skip_host_key_check"`
 	SshHostKey          types.String `tfsdk:"ssh_host_key"`
 	LogSshCommands      types.Bool   `tfsdk:"log_ssh_commands"`
 	UploadAppName       types.String `tfsdk:"upload_app_name"`
 	UploadSplitBytes    types.Int64  `tfsdk:"upload_split_bytes"`
-	SkipKnownHostsCheck types.Bool   `tfsdk:"skip_known_hosts_check"`
 }
 
 func (p *dokkuProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -92,6 +92,10 @@ func (p *dokkuProvider) Schema(ctx context.Context, req provider.SchemaRequest, 
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
+			},
+			"ssh_skip_host_key_check": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Skip the host key check. Insecure, should not be used in production. Default: false",
 			},
 			"ssh_host_key": schema.StringAttribute{
 				Optional: true,
@@ -139,10 +143,6 @@ func (p *dokkuProvider) Schema(ctx context.Context, req provider.SchemaRequest, 
 				Validators: []validator.Int64{
 					int64validator.AtLeast(1),
 				},
-			},
-			"skip_known_hosts_check": schema.BoolAttribute{
-				Optional:    true,
-				Description: "Skip the known hosts check. Default: false",
 			},
 		},
 	}
@@ -271,9 +271,9 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	tflog.Debug(ctx, "ssh connection", map[string]any{"host": host, "port": port, "user": sshUsername})
 
-	skipKnownHostsCheck := false
-	if !config.SkipKnownHostsCheck.IsNull() {
-		skipKnownHostsCheck = config.SkipKnownHostsCheck.ValueBool()
+	skipHostKeyCheck := false
+	if !config.SshSkipHostKeyCheck.IsNull() {
+		skipHostKeyCheck = config.SshSkipHostKeyCheck.ValueBool()
 	}
 
 	sshConfig := &goph.Config{
@@ -284,7 +284,7 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		Callback: verifyHost,
 	}
 
-	if skipKnownHostsCheck {
+	if skipHostKeyCheck {
 		sshConfig.Callback = ssh.InsecureIgnoreHostKey()
 	} else if !config.SshHostKey.IsNull() {
 		_, _, publicKey, _, _, err := ssh.ParseKnownHosts([]byte(config.SshHostKey.ValueString()))
