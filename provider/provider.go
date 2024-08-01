@@ -42,14 +42,15 @@ type dokkuProvider struct{}
 
 // dokkuProviderModel describes the provider data model.
 type dokkuProviderModel struct {
-	SshHost          types.String `tfsdk:"ssh_host"`
-	SshPort          types.Int64  `tfsdk:"ssh_port"`
-	SshUser          types.String `tfsdk:"ssh_user"`
-	SshCert          types.String `tfsdk:"ssh_cert"`
-	SshHostKey       types.String `tfsdk:"ssh_host_key"`
-	LogSshCommands   types.Bool   `tfsdk:"log_ssh_commands"`
-	UploadAppName    types.String `tfsdk:"upload_app_name"`
-	UploadSplitBytes types.Int64  `tfsdk:"upload_split_bytes"`
+	SshHost             types.String `tfsdk:"ssh_host"`
+	SshPort             types.Int64  `tfsdk:"ssh_port"`
+	SshUser             types.String `tfsdk:"ssh_user"`
+	SshCert             types.String `tfsdk:"ssh_cert"`
+	SshHostKey          types.String `tfsdk:"ssh_host_key"`
+	LogSshCommands      types.Bool   `tfsdk:"log_ssh_commands"`
+	UploadAppName       types.String `tfsdk:"upload_app_name"`
+	UploadSplitBytes    types.Int64  `tfsdk:"upload_split_bytes"`
+	SkipKnownHostsCheck types.Bool   `tfsdk:"skip_known_hosts_check"`
 }
 
 func (p *dokkuProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -138,6 +139,10 @@ func (p *dokkuProvider) Schema(ctx context.Context, req provider.SchemaRequest, 
 				Validators: []validator.Int64{
 					int64validator.AtLeast(1),
 				},
+			},
+			"skip_known_hosts_check": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Skip the known hosts check. Default: false",
 			},
 		},
 	}
@@ -266,6 +271,11 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 
 	tflog.Debug(ctx, "ssh connection", map[string]any{"host": host, "port": port, "user": sshUsername})
 
+	skipKnownHostsCheck := false
+	if !config.SkipKnownHostsCheck.IsNull() {
+		skipKnownHostsCheck = config.SkipKnownHostsCheck.ValueBool()
+	}
+
 	sshConfig := &goph.Config{
 		Auth:     sshAuth,
 		Addr:     host,
@@ -274,7 +284,9 @@ func (p *dokkuProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		Callback: verifyHost,
 	}
 
-	if !config.SshHostKey.IsNull() {
+	if skipKnownHostsCheck {
+		sshConfig.Callback = ssh.InsecureIgnoreHostKey()
+	} else if !config.SshHostKey.IsNull() {
 		_, _, publicKey, _, _, err := ssh.ParseKnownHosts([]byte(config.SshHostKey.ValueString()))
 		if err != nil {
 			resp.Diagnostics.AddError("Unable to parse provided ssh_host_key", "Unable to parse provided ssh_host_key. "+err.Error())
