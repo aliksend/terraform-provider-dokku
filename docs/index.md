@@ -47,9 +47,9 @@ provider "dokku" {
 - `ssh_cert` (String) Certificate (private key) to use. Default: ~/.ssh/id_rsa
   
   Supported formats:
-  - file:/a or /a or ./a or ~/a - use provided value as path to certificate file
-  - env:ABCD or $ABCD - use env var ABCD
-  - raw:----.. or ----... - use provided value as raw certificate
+  - `file:/a` or `/a` or `./a` or `~/a` - use provided value as path to certificate file
+  - `env:ABCD` or `$ABCD` - use env var ABCD
+  - `raw:----...` or `----...` - use provided value as raw certificate
 - `ssh_host_key` (String) Host public key to use. By default key from ~/.ssh/known_hosts will be used.
   To get public keys for your ssh_host, run `ssh-keyscan <ssh_host>`.
   Must be set for usage within Terraform Cloud.
