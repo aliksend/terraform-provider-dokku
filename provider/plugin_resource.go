@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
 
@@ -52,6 +53,12 @@ func (r *pluginResource) Configure(_ context.Context, req resource.ConfigureRequ
 // Schema defines the schema for the resource.
 func (r *pluginResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: strings.Join([]string{
+			"dokku plugin",
+			"Can't install the plugin because it requires root rights",
+			"Therefore, simply check that the plugin is installed and, if it is not, throw an error",
+			"https://dokku.com/docs/advanced-usage/plugin-management/",
+		}, "\n  "),
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
 				Required:    true,
@@ -116,8 +123,8 @@ func (r *pluginResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	// Невозможно установить плагин потому что это требует root-прав
-	// Поэтому просто проверяем что плагин установлен и, если это не так, то выкидываем ошибку
+	// Can't install the plugin because it requires root rights
+	// Therefore, simply check that the plugin is installed and, if it is not, throw an error
 	found, err := r.client.PluginIsInstalled(ctx, plan.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to read plugin", "Unable to read plugin. "+err.Error())
@@ -150,5 +157,5 @@ func (r *pluginResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
-	// Не заставляем удалять плагин
+	// Don't force to remove the plugin
 }

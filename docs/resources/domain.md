@@ -3,16 +3,23 @@
 page_title: "dokku_domain Resource - terraform-provider-dokku"
 subcategory: ""
 description: |-
-  
+  For global domains setup
+  For app-specific domains use app_resource.domains attribute
+  https://dokku.com/docs/configuration/domains/
 ---
 
 # dokku_domain (Resource)
 
-
+For global domains setup
+  For app-specific domains use app_resource.domains attribute
+  https://dokku.com/docs/configuration/domains/
 
 ## Example Usage
 
 ```terraform
+# For global domains setup
+# For app-specific domains use app_resource.domains attribute
+# https://dokku.com/docs/configuration/domains/
 resource "dokku_domain" "demo" {
   domain = "example.com"
 }

@@ -104,6 +104,10 @@ func (r *appResource) Configure(_ context.Context, req resource.ConfigureRequest
 // Schema defines the schema for the resource.
 func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: strings.Join([]string{
+			"dokku app",
+			"https://dokku.com/docs/deployment/application-management/",
+		}, "\n  "),
 		Attributes: map[string]schema.Attribute{
 			"app_name": schema.StringAttribute{
 				Required:    true,
@@ -136,7 +140,7 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 								"",
 								"Should not be used for uploading large files, because it is slow.",
 								"Also see upload_* attributes in provider configuration.",
-							}, "\n"),
+							}, "\n  "),
 							Validators: []validator.String{
 								stringvalidator.LengthAtLeast(1),
 							},

@@ -28,8 +28,6 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// TODO Добавить примеры в папку с примерамиx. Дописать Description-ы для аттрибутов
-
 // Ensure dokkuProvider satisfies various provider interfaces.
 var _ provider.Provider = &dokkuProvider{}
 
@@ -82,13 +80,13 @@ func (p *dokkuProvider) Schema(ctx context.Context, req provider.SchemaRequest, 
 			"ssh_cert": schema.StringAttribute{
 				Optional: true,
 				Description: strings.Join([]string{
-					"Certificate to use. Default: ~/.ssh/id_rsa",
+					"Certificate (private key) to use. Default: ~/.ssh/id_rsa",
 					"",
 					"Supported formats:",
 					"- file:/a or /a or ./a or ~/a - use provided value as path to certificate file",
 					"- env:ABCD or $ABCD - use env var ABCD",
 					"- raw:----.. or ----... - use provided value as raw certificate",
-				}, "\n"),
+				}, "\n  "),
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
@@ -101,9 +99,9 @@ func (p *dokkuProvider) Schema(ctx context.Context, req provider.SchemaRequest, 
 				Optional: true,
 				Description: strings.Join([]string{
 					"Host public key to use. By default key from ~/.ssh/known_hosts will be used.",
-					"To get public keys for your ssh_host, run `ssh-keyscan ssh_host`.",
+					"To get public keys for your ssh_host, run `ssh-keyscan <ssh_host>`.",
 					"Must be set for usage within Terraform Cloud.",
-				}, "\n"),
+				}, "\n  "),
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
@@ -120,12 +118,16 @@ func (p *dokkuProvider) Schema(ctx context.Context, req provider.SchemaRequest, 
 					"",
 					"Since dokku don't allow to upload files directly, workaround is used.",
 					"Algorithm is:",
-					"1. Create helper application, using name, provided in this attribute",
+					"1. Create helper dokku application, using name provided in this attribute plus random string to prevent conflicts with simultaneous uploads",
 					"2. Mount desired remote directory as /mnt",
-					"3. Deploy \"busybox\" docker image deployed to app",
-					"4. [on client side] Create tar archive for local_directory and encode it using base64",
-					"5. Connect to app using \"dokku enter\" and use a bunch of echo-s to make file \"tmp.tar.base64\", and then decode and un-tar it to /mnt",
-				}, "\n"),
+					"3. Deploy \"busybox\" docker image to app",
+					"4. [on host side] Create tar archive for local_directory and encode it using base64",
+					"5. Connect to app using \"dokku enter\" and use a bunch of echo-s to make file \"tmp.tar.base64\"",
+					"6. When file is completely uploaded - decode and un-tar it to /mnt",
+					"7. Delete helper dokku application",
+					"",
+					"See details in description to \"upload_app_name\" attribute.",
+				}, "\n  "),
 				Validators: []validator.String{
 					stringvalidator.LengthAtLeast(1),
 				},
@@ -138,8 +140,8 @@ func (p *dokkuProvider) Schema(ctx context.Context, req provider.SchemaRequest, 
 					"",
 					"Due to limited length of commands we can't use one echo to copy entire file.",
 					"So we need to split file into parts no larger than upload_split_bytes.",
-					"Don't use big values because if length of command exceed the limit then all operation will hang out.",
-				}, "\n"),
+					"Don't use big values because if length of command exceed the limit all operation will hang out.",
+				}, "\n  "),
 				Validators: []validator.Int64{
 					int64validator.AtLeast(1),
 				},

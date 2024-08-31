@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"regexp"
+	"strings"
 
 	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
 
@@ -53,6 +54,10 @@ func (r *letsencryptResource) Configure(_ context.Context, req resource.Configur
 // Schema defines the schema for the resource.
 func (r *letsencryptResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: strings.Join([]string{
+			"lentsencrypt plugin support",
+			"https://github.com/dokku/dokku-letsencrypt/",
+		}, "\n  "),
 		Attributes: map[string]schema.Attribute{
 			"app_name": schema.StringAttribute{
 				Required:    true,

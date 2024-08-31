@@ -3,12 +3,14 @@
 page_title: "dokku_http_auth Resource - terraform-provider-dokku"
 subcategory: ""
 description: |-
-  
+  basic auth plugin support
+  https://github.com/dokku/dokku-http-auth
 ---
 
 # dokku_http_auth (Resource)
 
-
+basic auth plugin support
+  https://github.com/dokku/dokku-http-auth
 
 ## Example Usage
 

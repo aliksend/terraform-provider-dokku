@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"regexp"
+	"strings"
 
 	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
 
@@ -59,6 +60,10 @@ func (r *httpAuthResource) Configure(_ context.Context, req resource.ConfigureRe
 // Schema defines the schema for the resource.
 func (r *httpAuthResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: strings.Join([]string{
+			"basic auth plugin support",
+			"https://github.com/dokku/dokku-http-auth",
+		}, "\n  "),
 		Attributes: map[string]schema.Attribute{
 			"app_name": schema.StringAttribute{
 				Required:    true,

@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"strings"
 
 	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
 
@@ -51,6 +52,11 @@ func (r *domainResource) Configure(_ context.Context, req resource.ConfigureRequ
 // Schema defines the schema for the resource.
 func (r *domainResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		Description: strings.Join([]string{
+			"For global domains setup",
+			"For app-specific domains use app_resource.domains attribute",
+			"https://dokku.com/docs/configuration/domains/",
+		}, "\n  "),
 		Attributes: map[string]schema.Attribute{
 			"domain": schema.StringAttribute{
 				Required:    true,

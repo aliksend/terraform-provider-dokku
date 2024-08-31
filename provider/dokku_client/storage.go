@@ -161,14 +161,10 @@ func (c *Client) makeTarArchiveForDirectory(ctx context.Context, localDirectory 
 // / dokku git:from-image <APP_NAME> busybox
 // / dokku enter <APP_NAME> web sh
 // /     ## in pseudo-tty
-// /     # remove old tmp archive (if present)
-// /     rm -f /mnt/tmp.tar.base64
 // /     # multiple echo commands with base64-encoded tar archive
-// /     echo -n '...' >> /mnt/tmp.tar.base64
+// /     echo -n '...' >> /tmp/tmp.tar.base64
 // /     # untar archive
-// /     cat /mnt/tmp.tar.base64 | base64 -d | tar x -C /mnt
-// /     # remove tmp archive
-// /     rm -f /mnt/tmp.tar.base64
+// /     cat /tmp/tmp.tar.base64 | base64 -d | tar x -C /mnt
 // /     exit
 // / dokku apps:destroy --force <APP_NAME>
 func (c *Client) storageSyncDirectories(ctx context.Context, storageName string, localDirectory string, remoteDirectory string) error {
@@ -249,10 +245,10 @@ func (c *Client) copyToRemoteHost(ctx context.Context, appName string, localDire
 		return fmt.Errorf("unable to start copying files to remote directory: %w", err)
 	}
 
-	_, err = io.WriteString(stdin, "rm -f /mnt/tmp.tar.base64\n")
-	if err != nil {
-		return fmt.Errorf("unable to write string to file: %w", err)
-	}
+	// _, err = io.WriteString(stdin, "rm -f /tmp/tmp.tar.base64\n")
+	// if err != nil {
+	// 	return fmt.Errorf("unable to write string to file: %w", err)
+	// }
 
 	pReader, pWriter := io.Pipe()
 
@@ -291,7 +287,7 @@ func (c *Client) copyToRemoteHost(ctx context.Context, appName string, localDire
 	})
 	for scanner.Scan() {
 		// log.Printf("write %d\n", len(scanner.Text()))
-		_, err = io.WriteString(stdin, fmt.Sprintf("echo -n '%s' >> /mnt/tmp.tar.base64\n", scanner.Text()))
+		_, err = io.WriteString(stdin, fmt.Sprintf("echo -n '%s' >> /tmp/tmp.tar.base64\n", scanner.Text()))
 		if err != nil {
 			return fmt.Errorf("unable to write string to file: %w", err)
 		}
@@ -302,15 +298,15 @@ func (c *Client) copyToRemoteHost(ctx context.Context, appName string, localDire
 		return fmt.Errorf("unable to scan all: %w", err)
 	}
 
-	_, err = io.WriteString(stdin, "cat /mnt/tmp.tar.base64 | base64 -d | tar x -C /mnt\n")
+	_, err = io.WriteString(stdin, "cat /tmp/tmp.tar.base64 | base64 -d | tar x -C /mnt\n")
 	if err != nil {
 		return fmt.Errorf("unable to extract tar archive: %w", err)
 	}
 
-	_, err = io.WriteString(stdin, "rm -f /mnt/tmp.tar.base64\n")
-	if err != nil {
-		return fmt.Errorf("unable to remove tmp archive: %w", err)
-	}
+	// _, err = io.WriteString(stdin, "rm -f /tmp/tmp.tar.base64\n")
+	// if err != nil {
+	// 	return fmt.Errorf("unable to remove tmp archive: %w", err)
+	// }
 
 	_, err = io.WriteString(stdin, "exit\n")
 	if err != nil {
