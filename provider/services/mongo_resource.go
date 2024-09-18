@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 
 	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
@@ -69,7 +70,7 @@ func (r *mongoResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Optional:    true,
 				Description: "Port or IP:Port to expose service on",
 				Validators: []validator.String{
-					stringvalidator.RegexMatches(regexp.MustCompile(`^\d+$|^\d+\.\d+\.\d+\.\d+:\d+$`), "invalid expose"),
+					stringvalidator.RegexMatches(regexp.MustCompile(`^(?:(?:\d+|\d+\.\d+\.\d+\.\d+:\d+) ){3}(?:\d+|\d+\.\d+\.\d+\.\d+:\d+)$`), "invalid expose"),
 				},
 			},
 		},
@@ -104,14 +105,14 @@ func (r *mongoResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	}
 	infoExposedPorts := info["Exposed ports"]
 	if infoExposedPorts != "" && infoExposedPorts != "-" {
-		r := regexp.MustCompile(`^\d+->(.+)$`)
+		r := regexp.MustCompile(`^\d+->(.+) \d+->(.+) \d+->(.+) \d+->(.+)$`)
 		m := r.FindStringSubmatch(infoExposedPorts)
-		if len(m) != 2 {
+		if len(m) != 5 {
 			resp.Diagnostics.AddError("Unsupported format of mongo service Exposed ports", "Unsupported format of mongo service Exposed ports: "+infoExposedPorts)
 			return
 		}
 
-		state.Expose = basetypes.NewStringValue(m[1])
+		state.Expose = basetypes.NewStringValue(fmt.Sprintf("%s %s %s %s", m[1], m[2], m[3], m[4]))
 	} else {
 		state.Expose = basetypes.NewStringNull()
 	}

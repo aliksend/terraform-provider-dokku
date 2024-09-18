@@ -13,6 +13,14 @@ Interact with dokku
 ## Example Usage
 
 ```terraform
+terraform {
+  required_providers {
+    dokku = {
+      source = "registry.terraform.io/aliksend/dokku"
+    }
+  }
+}
+
 # simple configuration
 provider "dokku" {
   ssh_host = "127.0.0.1"
