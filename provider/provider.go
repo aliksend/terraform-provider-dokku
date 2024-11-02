@@ -345,6 +345,7 @@ func (p *dokkuProvider) Resources(ctx context.Context) []func() resource.Resourc
 		NewHttpAuthResource,
 		NewLetsencryptResource,
 		NewPluginResource,
+		NewNginxConfigResource,
 
 		services.NewClickhouseLinkResource,
 		services.NewClickhouseResource,
