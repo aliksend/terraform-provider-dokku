@@ -7,6 +7,7 @@ import (
 
 	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/mapvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -33,10 +34,9 @@ type nginxConfigResource struct {
 }
 
 type nginxConfigResourceModel struct {
-	AppName  types.String `tfsdk:"app_name"`
-	Global   types.Bool   `tfsdk:"global"`
-	Property types.String `tfsdk:"property"`
-	Value    types.String `tfsdk:"value"`
+	AppName types.String            `tfsdk:"app_name"`
+	Global  types.Bool              `tfsdk:"global"`
+	Config  map[string]types.String `tfsdk:"config"`
 }
 
 // Metadata returns the resource type name.
@@ -80,21 +80,13 @@ func (r *nginxConfigResource) Schema(_ context.Context, _ resource.SchemaRequest
 					boolplanmodifier.RequiresReplace(),
 				},
 			},
-			"property": schema.StringAttribute{
+			"config": schema.MapAttribute{
 				Required:    true,
-				Description: "Property of nginx config to configure",
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
-				},
-			},
-			"value": schema.StringAttribute{
-				Required:    true,
-				Description: "Value of the property of nginx config to set",
-				Validators: []validator.String{
-					stringvalidator.LengthAtLeast(1),
+				Description: "Nginx config",
+				ElementType: types.StringType,
+				Validators: []validator.Map{
+					mapvalidator.KeysAre(stringvalidator.LengthAtLeast(1)),
+					mapvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
 				},
 			},
 		},
@@ -137,13 +129,14 @@ func (r *nginxConfigResource) Read(ctx context.Context, req resource.ReadRequest
 	}
 
 	// Read
-	property := state.Property.ValueString()
-	value, err := r.client.NginxConfigGetValue(ctx, appName, property)
-	if err != nil {
-		resp.Diagnostics.AddError("Unable to read nginxConfig property"+property, "Unable to read nginxConfig property"+property+". "+err.Error())
-		return
+	for property := range state.Config {
+		value, err := r.client.NginxConfigGetValue(ctx, appName, property)
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to read nginxConfig property"+property, "Unable to read nginxConfig property"+property+". "+err.Error())
+			return
+		}
+		state.Config[property] = basetypes.NewStringValue(value)
 	}
-	state.Value = basetypes.NewStringValue(value)
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, &state)
@@ -173,9 +166,17 @@ func (r *nginxConfigResource) Create(ctx context.Context, req resource.CreateReq
 	}
 
 	// Create
-	err := r.client.NginxConfigSetValue(ctx, appName, plan.Property.ValueString(), plan.Value.ValueString())
+	for property := range plan.Config {
+		err := r.client.NginxConfigSetValue(ctx, appName, property, plan.Config[property].ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to set nginxConfig property", "Unable to set nginxConfig property. "+err.Error())
+			return
+		}
+	}
+
+	err := r.client.ProxyBuildConfig(ctx, appName)
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to set nginxConfig property", "Unable to set nginxConfig property. "+err.Error())
+		resp.Diagnostics.AddError("Unable to rebuild nginxConfig for app", "Unable to rebuild nginxConfig for app. "+err.Error())
 		return
 	}
 
@@ -213,9 +214,35 @@ func (r *nginxConfigResource) Update(ctx context.Context, req resource.UpdateReq
 	}
 
 	// Update
-	err := r.client.NginxConfigSetValue(ctx, appName, plan.Property.ValueString(), plan.Value.ValueString())
+	var updatedProperties []string
+	for property := range plan.Config {
+		err := r.client.NginxConfigSetValue(ctx, appName, property, plan.Config[property].ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to set nginxConfig property", "Unable to set nginxConfig property. "+err.Error())
+			return
+		}
+		updatedProperties = append(updatedProperties, property)
+	}
+	for property := range state.Config {
+		presentInPlan := false
+		for _, p := range updatedProperties {
+			if property == p {
+				presentInPlan = true
+				break
+			}
+		}
+		if !presentInPlan {
+			err := r.client.NginxConfigResetValue(ctx, appName, property)
+			if err != nil {
+				resp.Diagnostics.AddError("Unable to reset nginxConfig property", "Unable to reset nginxConfig property. "+err.Error())
+				return
+			}
+		}
+	}
+
+	err := r.client.ProxyBuildConfig(ctx, appName)
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to set nginxConfig property", "Unable to set nginxConfig property. "+err.Error())
+		resp.Diagnostics.AddError("Unable to rebuild nginxConfig for app", "Unable to rebuild nginxConfig for app. "+err.Error())
 		return
 	}
 
@@ -249,9 +276,17 @@ func (r *nginxConfigResource) Delete(ctx context.Context, req resource.DeleteReq
 		return
 	}
 
-	err := r.client.NginxConfigResetValue(ctx, appName, state.Property.ValueString())
+	for property := range state.Config {
+		err := r.client.NginxConfigResetValue(ctx, appName, property)
+		if err != nil {
+			resp.Diagnostics.AddError("Unable to reset nginxConfig property", "Unable to reset nginxConfig property. "+err.Error())
+			return
+		}
+	}
+
+	err := r.client.ProxyBuildConfig(ctx, appName)
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to reset nginxConfig property", "Unable to reset nginxConfig property. "+err.Error())
+		resp.Diagnostics.AddError("Unable to rebuild nginxConfig for app", "Unable to rebuild nginxConfig for app. "+err.Error())
 		return
 	}
 }

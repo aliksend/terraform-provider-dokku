@@ -6,7 +6,7 @@ import (
 )
 
 func (c *Client) NginxConfigGetValue(ctx context.Context, appName string, property string) (string, error) {
-	stdout, _, err := c.RunQuiet(ctx, fmt.Sprintf("dokku nginx:report %s --%s", appName, property))
+	stdout, _, err := c.RunQuiet(ctx, fmt.Sprintf("dokku nginx:report %s --nginx-%s", appName, property))
 	return stdout, err
 }
 

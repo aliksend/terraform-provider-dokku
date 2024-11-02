@@ -21,8 +21,7 @@ dokku nginx config
 
 ### Required
 
-- `property` (String) Property of nginx config to configure
-- `value` (String) Value of the property of nginx config to set
+- `config` (Map of String) Nginx config
 
 ### Optional
 
