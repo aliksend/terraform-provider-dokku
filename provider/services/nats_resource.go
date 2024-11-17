@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 
 	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
@@ -33,6 +34,7 @@ type natsResource struct {
 
 type natsResourceModel struct {
 	ServiceName   types.String `tfsdk:"service_name"`
+	Image         types.String `tfsdk:"image"`
 	ConfigOptions types.String `tfsdk:"config_options"`
 	Expose        types.String `tfsdk:"expose"`
 }
@@ -64,6 +66,16 @@ func (r *natsResource) Schema(_ context.Context, _ resource.SchemaRequest, resp 
 				},
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-z][a-z0-9-]*$`), "invalid service_name"),
+				},
+			},
+			"image": schema.StringAttribute{
+				Optional:    true,
+				Description: "Image to use in `image:version` format",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(regexp.MustCompile(`^(.+):(.+)$`), "invalid image"),
 				},
 			},
 			"config_options": schema.StringAttribute{
@@ -131,6 +143,8 @@ func (r *natsResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	} else {
 		state.Expose = basetypes.NewStringNull()
 	}
+	infoVersion := info["Version"]
+	state.Image = basetypes.NewStringValue(infoVersion)
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, &state)
@@ -162,9 +176,21 @@ func (r *natsResource) Create(ctx context.Context, req resource.CreateRequest, r
 	}
 
 	var args []string
+
+	if !plan.Image.IsNull() {
+		r := regexp.MustCompile(`^(.+):(.+)$`)
+		m := r.FindStringSubmatch(plan.Image.ValueString())
+		if len(m) == 3 {
+			args = append(args, fmt.Sprintf("--image %s", m[1]), fmt.Sprintf("--image-version %s", m[2]))
+		} else {
+			resp.Diagnostics.AddError("Invalid image format", "Invalid image format")
+		}
+	}
+
 	if !plan.ConfigOptions.IsNull() {
 		args = append(args, dokkuclient.DoubleDashArg("config-options", plan.ConfigOptions))
 	}
+
 	err = r.client.SimpleServiceCreate(ctx, "nats", plan.ServiceName.ValueString(), args...)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to create nats service", "Unable to create nats service. "+err.Error())

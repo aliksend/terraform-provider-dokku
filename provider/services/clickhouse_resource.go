@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 
 	dokkuclient "github.com/aliksend/terraform-provider-dokku/provider/dokku_client"
@@ -33,6 +34,7 @@ type clickhouseResource struct {
 
 type clickhouseResourceModel struct {
 	ServiceName types.String `tfsdk:"service_name"`
+	Image       types.String `tfsdk:"image"`
 	Expose      types.String `tfsdk:"expose"`
 }
 
@@ -63,6 +65,16 @@ func (r *clickhouseResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				},
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-z][a-z0-9-]*$`), "invalid service_name"),
+				},
+			},
+			"image": schema.StringAttribute{
+				Optional:    true,
+				Description: "Image to use in `image:version` format",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(regexp.MustCompile(`^(.+):(.+)$`), "invalid image"),
 				},
 			},
 			"expose": schema.StringAttribute{
@@ -115,6 +127,8 @@ func (r *clickhouseResource) Read(ctx context.Context, req resource.ReadRequest,
 	} else {
 		state.Expose = basetypes.NewStringNull()
 	}
+	infoVersion := info["Version"]
+	state.Image = basetypes.NewStringValue(infoVersion)
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, &state)
@@ -145,7 +159,19 @@ func (r *clickhouseResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	err = r.client.SimpleServiceCreate(ctx, "clickhouse", plan.ServiceName.ValueString())
+	var args []string
+
+	if !plan.Image.IsNull() {
+		r := regexp.MustCompile(`^(.+):(.+)$`)
+		m := r.FindStringSubmatch(plan.Image.ValueString())
+		if len(m) == 3 {
+			args = append(args, fmt.Sprintf("--image %s", m[1]), fmt.Sprintf("--image-version %s", m[2]))
+		} else {
+			resp.Diagnostics.AddError("Invalid image format", "Invalid image format")
+		}
+	}
+
+	err = r.client.SimpleServiceCreate(ctx, "clickhouse", plan.ServiceName.ValueString(), args...)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to create clickhouse service", "Unable to create clickhouse service. "+err.Error())
 		return

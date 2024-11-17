@@ -22,3 +22,4 @@ description: |-
 ### Optional
 
 - `expose` (String) Port or IP:Port to expose service on
+- `image` (String) Image to use in `image:version` format

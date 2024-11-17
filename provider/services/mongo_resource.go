@@ -34,6 +34,7 @@ type mongoResource struct {
 
 type mongoResourceModel struct {
 	ServiceName types.String `tfsdk:"service_name"`
+	Image       types.String `tfsdk:"image"`
 	Expose      types.String `tfsdk:"expose"`
 }
 
@@ -64,6 +65,16 @@ func (r *mongoResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				},
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(regexp.MustCompile(`^[a-z][a-z0-9-]*$`), "invalid service_name"),
+				},
+			},
+			"image": schema.StringAttribute{
+				Optional:    true,
+				Description: "Image to use in `image:version` format",
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(regexp.MustCompile(`^(.+):(.+)$`), "invalid image"),
 				},
 			},
 			"expose": schema.StringAttribute{
@@ -116,6 +127,8 @@ func (r *mongoResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	} else {
 		state.Expose = basetypes.NewStringNull()
 	}
+	infoVersion := info["Version"]
+	state.Image = basetypes.NewStringValue(infoVersion)
 
 	// Set refreshed state
 	diags = resp.State.Set(ctx, &state)
@@ -144,6 +157,18 @@ func (r *mongoResource) Create(ctx context.Context, req resource.CreateRequest, 
 	if exists {
 		resp.Diagnostics.AddAttributeError(path.Root("service_name"), "Mongo service already exists", "Mongo service already exists")
 		return
+	}
+
+	var args []string
+
+	if !plan.Image.IsNull() {
+		r := regexp.MustCompile(`^(.+):(.+)$`)
+		m := r.FindStringSubmatch(plan.Image.ValueString())
+		if len(m) == 3 {
+			args = append(args, fmt.Sprintf("--image %s", m[1]), fmt.Sprintf("--image-version %s", m[2]))
+		} else {
+			resp.Diagnostics.AddError("Invalid image format", "Invalid image format")
+		}
 	}
 
 	err = r.client.SimpleServiceCreate(ctx, "mongo", plan.ServiceName.ValueString())

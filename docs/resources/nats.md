@@ -44,6 +44,7 @@ resource "dokku_nats" "demo" {
 
 - `config_options` (String) Config options to create service with
 - `expose` (String) Port or IP:Port to expose service on
+- `image` (String) Image to use in `image:version` format
 
 ## Import
 
