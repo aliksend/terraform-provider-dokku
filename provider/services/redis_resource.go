@@ -70,6 +70,7 @@ func (r *redisResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 			"image": schema.StringAttribute{
 				Optional:    true,
 				Description: "Image to use in `image:version` format",
+				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
