@@ -1,5 +1,10 @@
 # Terraform Provider for Dokku (Terraform Plugin Framework)
 
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/aliksend/terraform-provider-dokku/release.yml)](https://github.com/aliksend/terraform-provider-dokku/actions/workflows/release.yml)
+[![GitHub Release Date](https://img.shields.io/github/release-date/aliksend/terraform-provider-dokku?label=released)](https://registry.terraform.io/providers/aliksend/dokku/latest)
+[![Terraform Registry](https://img.shields.io/badge/Terraform%20Registry-gray)](https://registry.terraform.io/providers/aliksend/dokku/latest)
+[![Static Badge](https://img.shields.io/badge/Documentation-blue)](https://registry.terraform.io/providers/aliksend/dokku/latest/docs)
+
 This repository is a [Terraform](https://www.terraform.io) provider for [Dokku](https://dokku.com/).
 
 For now only subset of dokku features are supported now.
