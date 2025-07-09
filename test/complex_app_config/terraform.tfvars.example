@@ -1,0 +1,14 @@
+# Example terraform.tfvars for complex app configuration test
+dokku_host = "localhost"
+dokku_port = 3022
+app_name   = "my-complex-app"
+
+# Complex app configuration with ENV='prod' and APP_NAME=var.app_name
+app_config = {
+  ENV      = "prod"
+  APP_NAME = "my-complex-app"  # Should match app_name
+  NODE_ENV = "production"
+  PORT     = "3000"
+  DEBUG    = "false"
+  API_URL  = "https://api.example.com"
+}

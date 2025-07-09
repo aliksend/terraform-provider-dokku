@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/blang/semver"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -104,7 +105,16 @@ var (
 )
 
 func (c *Client) GetVersion(ctx context.Context) (rawVersion string, parsedVersion semver.Version, err error) {
-	stdout, status, _ := c.RunQuiet(ctx, "version")
+	var stdout string
+	var status int
+
+	for i := 0; i < 5; i++ {
+		stdout, status, _ = c.RunQuiet(ctx, "version")
+		if status == 0 {
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
 
 	// Check for 127 status code... suggests that we're not authenticating
 	// with a dokku user (see https://github.com/aaronstillwell/terraform-provider-dokku/issues/1)

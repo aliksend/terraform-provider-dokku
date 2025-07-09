@@ -10,7 +10,7 @@ resource "dokku_nats" "demo" {
   # config options for nats (optional)
   config_options = "--jetstream"
   # hots:port or port to expose service to host machine (optional)
-  expose = "1234"
+  expose = "12345"
 
   depends_on = [
     dokku_plugin.nats

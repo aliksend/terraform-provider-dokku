@@ -8,6 +8,7 @@ resource "dokku_app" "demo2" {
   # https://dokku.com/docs/configuration/environment-variables/
   config = {
     foo = "bar"
+    PORT = "5000"
   }
 
   # https://dokku.com/docs/deployment/zero-downtime-deploys/
@@ -27,16 +28,18 @@ resource "dokku_app" "demo2" {
       mount_path = "/app/config"
       # copy local directory "./config" to host directory, that will be mounted as "/app/config"
       local_directory = "./config"
+
+      PORT = "5000"
     }
   }
 
   # DEPRECATED use ports instead
-  proxy_ports = {
-    80 = {
-      scheme         = "http"
-      container_port = 5000
-    }
-  }
+  # proxy_ports = {
+  #   80 = {
+  #     scheme         = "http"
+  #     container_port = 5000
+  #   }
+  # }
 
   # https://dokku.com/docs/networking/port-management/
   ports = {
@@ -65,9 +68,10 @@ resource "dokku_app" "demo2" {
   # https://dokku.com/docs/deployment/methods/image/
   # https://dokku.com/docs/deployment/methods/archive/
   deploy = {
-    type         = "docker_image"
-    login        = var.docker_image_registry_login
-    password     = var.docker_image_registry_password
+    type = "docker_image"
     docker_image = var.docker_image
+    # enable if auth required
+    # login        = var.docker_image_registry_login
+    # password     = var.docker_image_registry_password
   }
 }

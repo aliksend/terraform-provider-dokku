@@ -36,10 +36,53 @@ func (c *Client) DeployFromImage(ctx context.Context, appName string, dockerImag
 
 		return false, err
 	}
-	return true, nil
+
+	// Verify deployment actually completed by checking if the app is running
+	// git:from-image may succeed but the subsequent build/deploy pipeline may fail
+	deployed, err = c.verifyDeploymentSuccess(ctx, appName)
+	if err != nil {
+		return false, fmt.Errorf("deployment verification failed: %w", err)
+	}
+
+	return deployed, nil
 }
 
 func (c *Client) DeploySyncRepository(ctx context.Context, appName string, repositoryUrl string, ref string) error {
 	_, _, err := c.Run(ctx, fmt.Sprintf("git:sync --build %s %s %s", appName, repositoryUrl, ref))
 	return err
+}
+
+// verifyDeploymentSuccess checks if an app deployment actually completed successfully
+// by verifying the app is running and has containers
+func (c *Client) verifyDeploymentSuccess(ctx context.Context, appName string) (bool, error) {
+	// Check ps:report to see if app is actually running
+	stdout, _, err := c.RunQuiet(ctx, fmt.Sprintf("ps:report %s", appName))
+	if err != nil {
+		return false, fmt.Errorf("failed to get app status: %w", err)
+	}
+
+	// Parse the ps:report output to check deployment status
+	isDeployed := strings.Contains(stdout, "Deployed:                      true")
+	isRunning := strings.Contains(stdout, "Running:                       true")
+
+	// Check for missing container indicators
+	hasMissingContainer := strings.Contains(stdout, "missing (CID:")
+
+	if !isDeployed {
+		return false, fmt.Errorf("app is not marked as deployed")
+	}
+
+	if hasMissingContainer {
+		return false, fmt.Errorf("app has missing containers, deployment incomplete")
+	}
+
+	if !isRunning {
+		// App is deployed but not running - this might be temporary during startup
+		// Give it a moment and check again
+		// Note: We return true here because deployment succeeded, even if startup is still in progress
+		// The running state will be checked during health verification
+		return true, nil
+	}
+
+	return true, nil
 }

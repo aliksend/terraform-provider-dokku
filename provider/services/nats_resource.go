@@ -206,6 +206,19 @@ func (r *natsResource) Create(ctx context.Context, req resource.CreateRequest, r
 		}
 	}
 
+	// Read the service info to populate computed fields like image
+	info, err := r.client.SimpleServiceInfo(ctx, "nats", plan.ServiceName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Unable to get nats service info", "Unable to get nats service info. "+err.Error())
+		return
+	}
+
+	// Set the image field from the service info
+	infoVersion := info["Version"]
+	if infoVersion != "" {
+		plan.Image = basetypes.NewStringValue(infoVersion)
+	}
+
 	// Set state to fully populated data
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)

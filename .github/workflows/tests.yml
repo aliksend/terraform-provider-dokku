@@ -1,0 +1,105 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: ${{ steps.artifact.outputs.artifact-name }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - uses: actions/setup-go@v5.1.0
+      with:
+        go-version-file: 'go.mod'
+        cache: true
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/.tool-versions', '**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Download Go dependencies
+      run: go mod download
+
+    - name: Build provider
+      run: |
+        go build -o terraform-provider-dokku .
+        chmod +x terraform-provider-dokku
+
+    - name: Upload provider artifact
+      id: artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: terraform-provider-dokku-${{ github.sha }}
+        path: terraform-provider-dokku
+        retention-days: 1
+
+  e2e:
+    name: "E2E: ${{ matrix.test_name }}, dokku: ${{ matrix.dokku_version}} terraform: ${{ matrix.terraform_version }}"
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        dokku_version:
+          - 0.34.7
+        terraform_version:
+          - 1.12.2
+
+        test_name:
+          - TestSimple
+          - TestComplexAppConfig
+          - TestExampleDokkuApp
+          - TestExampleDokkuDomain
+          - TestExampleDokkuHttpAuth
+          - TestExampleDokkuPlugin
+          - TestExampleDokkuPostgres
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - uses: actions/setup-go@v5.1.0
+      with:
+        go-version-file: 'go.mod'
+        cache: true
+
+    - name: Setup Terraform v${{ matrix.terraform_version }}
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ matrix.terraform_version }}
+
+    - name: Download Go dependencies
+      run: go mod download
+
+    - name: Download provider artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: terraform-provider-dokku-${{ github.sha }}
+        path: .
+
+    - name: Make provider executable
+      run: chmod +x terraform-provider-dokku
+
+    - name: "Run E2E test for ${{ matrix.test_name }}, dokku: ${{ matrix.dokku_version}} terraform: ${{ matrix.terraform_version }}"
+      run: |
+        go test -v ./test -run ${{ matrix.test_name }}
+      env:
+        TF_ACC: "1"
+        DOCKER_BUILDKIT: "0"  # Disable BuildKit for compatibility
+        DOKKU_VERSION: ${{ matrix.dokku_version }}

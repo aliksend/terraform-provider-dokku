@@ -172,7 +172,7 @@ func (r *postgresResource) Create(ctx context.Context, req resource.CreateReques
 		}
 	}
 
-	err = r.client.SimpleServiceCreate(ctx, "postgres", plan.ServiceName.ValueString())
+	err = r.client.SimpleServiceCreate(ctx, "postgres", plan.ServiceName.ValueString(), args...)
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to create postgres service", "Unable to create postgres service. "+err.Error())
 		return

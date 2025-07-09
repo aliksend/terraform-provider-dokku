@@ -7,6 +7,8 @@ resource "dokku_plugin" "postgres" {
 # https://github.com/dokku/dokku-postgres
 resource "dokku_postgres" "demo" {
   service_name = "demo"
+  # Specify postgres image and version
+  image = "postgres:15"
   # hots:port or port to expose service to host machine (optional)
   expose = "7596"
 
